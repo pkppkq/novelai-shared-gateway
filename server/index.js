@@ -1,3 +1,4 @@
+import { launcherSubscription } from './launcher-subscription.js';
 import { sharedSurface } from './shared-surface.js';
 import { handleMemberRoutes } from './member-routes.js';
 import { configureFairQuota, syncFairQuota, reserveFairQuota, settleFairQuota, fairQuotaSummary, quoteFairRequest } from './fair-quota.js';
@@ -230,7 +231,7 @@ async function publicSelfUseGuard(req, res, url, method) {
     sendJson(res, 200, { defaultModel: settings.defaultModel, defaultNegative: settings.defaultNegative, defaults: settings.defaults });
     return true;
   }
-  const protectedPath = url.pathname.startsWith('/api/') || url.pathname.startsWith('/v1/') || url.pathname.startsWith('/ai/') || ['/generate', '/memory'].includes(url.pathname);
+  const protectedPath = url.pathname.startsWith('/api/') || url.pathname.startsWith('/v1/') || url.pathname.startsWith('/ai/') || url.pathname.startsWith('/user/') || ['/generate', '/memory'].includes(url.pathname);
   if (!protectedPath) return false;
   // 公网管理员仅接受请求头；反向代理另外隔离所有管理路由。
   if (adminToken && req.headers['x-admin-token'] === adminToken) return false;
@@ -281,6 +282,19 @@ async function route(req, res) {
       return;
     }
     await serveStatic(url.pathname, res, { head: true });
+    return;
+  }
+
+  // 第三方 NAI 启动器只读取调用者本地钱包，不转发共享上游的原始订阅数据。
+  if (method === 'GET' && ['/user/subscription', '/v1/user/subscription'].includes(url.pathname)) {
+    const subscription = await store.update(db => launcherSubscription(db, getUserOrThrow(db, tokenFrom(req, url))), { collections: ['settings'] });
+    sendJson(res, 200, subscription);
+    return;
+  }
+  if (method === 'POST' && ['/ai/generate-image-stream', '/v1/ai/generate-image-stream'].includes(url.pathname)) {
+    await store.update(db => launcherSubscription(db, getUserOrThrow(db, tokenFrom(req, url))), { persist: false });
+    // 启动器识别这段消息后自动改用已有 ZIP 接口；此处不创建任务或扣费。
+    sendJson(res, 403, { message: 'Streaming is not allowed; use /ai/generate-image.', error: 'Streaming is not allowed; use /ai/generate-image.' });
     return;
   }
 

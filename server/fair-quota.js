@@ -127,7 +127,7 @@ export function manageFairMember(db, body, now=Date.now()) {
   const source=draft.users.find(u=>u.id===sourceId),target=draft.users.find(u=>u.id===targetId);
   if(!source)fail('成员不存在',404);
   if(!target||target.id===source.id)fail('请选择另一名成员接收余额',400);
-  let autoJoined=null;
+  let autoJoined=null,shareChanges=[];
   const transferred={v5:0,anlasFixed:0,anlasPurchased:0};
   if(body.action==='transfer-quota') {
     if(!s.balances[target.id])fail('转账接收成员必须已加入共享分组',400);
@@ -139,6 +139,7 @@ export function manageFairMember(db, body, now=Date.now()) {
     if(body.resource==='v5'&&s.balances[target.id][field]+body.amount>100*weight(s,target.id)+1e-9)fail('接收成员 V5 超出容量，请先增加其份额或减少转账量',409);
     s.balances[source.id][field]-=body.amount;s.balances[target.id][field]+=body.amount;transferred[body.resource]=body.amount;
   } else {
+    const originalShares=Object.fromEntries(s.members.map(id=>[id,weight(s,id)]));
     const originalGroup=groupFor(s,source.id);
     if(!s.balances[target.id]){
       if(!originalGroup)fail('删除未分组成员时，请选择已分组成员接收；双方均未分组无法继承份额',400);
@@ -157,22 +158,19 @@ export function manageFairMember(db, body, now=Date.now()) {
     }
     // 删除接收的 V5 可以暂时超容量，恢复函数只在余额低于容量后继续入账。
     delete s.balances[source.id];s.members=s.members.filter(id=>id!==source.id);
-    const sourceGroup=groupFor(s,source.id),targetGroup=groupFor(s,target.id);
-    if(sourceGroup){
-      const remainingWeight=sourceGroup.members.filter(id=>id!==source.id).reduce((n,id)=>n+(sourceGroup.memberWeights[id] ?? 1),0);
-      if(sourceGroup===targetGroup&&remainingWeight===0&&sourceGroup.share>0)targetGroup.memberWeights[target.id]=sourceGroup.memberWeights[source.id] || 1;
-      else if(sourceGroup!==targetGroup&&(sourceGroup.members.length===1||(remainingWeight===0&&sourceGroup.share>0))){
-        targetGroup.share=(targetGroup.share ?? .25)+(sourceGroup.share ?? .25);sourceGroup.share=0;
-        if(targetGroup.share>0&&targetGroup.members.reduce((n,id)=>n+(targetGroup.memberWeights[id] ?? 1),0)===0)targetGroup.memberWeights[target.id]=1;
-      }
-    }
-    s.groups=s.groups.map(g=>{const memberWeights={...g.memberWeights};delete memberWeights[source.id];return {...g,members:g.members.filter(id=>id!==source.id),memberWeights};});
+    // 按删除前的全局份额精确转给指定接收者，不让组内其他成员被动分走份额。
+    const finalShares={...originalShares,[source.id]:0,[target.id]:(originalShares[target.id] || 0)+(originalShares[source.id] || 0)};
+    s.groups=s.groups.map(g=>{
+      const members=g.members.filter(id=>id!==source.id);
+      return {...g,members,share:members.reduce((n,id)=>n+(finalShares[id] || 0),0),memberWeights:Object.fromEntries(members.map(id=>[id,(finalShares[id] || 0)*100]))};
+    });
+    shareChanges=[...new Set([...Object.keys(originalShares),source.id,target.id])].map(userId=>({userId,beforeShare:originalShares[userId] || 0,afterShare:finalShares[userId] || 0}));
     draft.users=draft.users.filter(u=>u.id!==source.id);
   }
   totals(s);s.configVersion+=1;
-  s.configurationHistory.push({at:now,actorId:'administrator',action:body.action==='transfer-quota'?'transfer-quota':'delete-member',version:s.configVersion,sourceId,targetId,transferred,autoJoined,before,after:structuredClone(s.groups),beforeBalances,afterBalances:structuredClone(s.balances)});
+  s.configurationHistory.push({at:now,actorId:'administrator',action:body.action==='transfer-quota'?'transfer-quota':'delete-member',version:s.configVersion,sourceId,targetId,transferred,autoJoined,shareChanges,before,after:structuredClone(s.groups),beforeBalances,afterBalances:structuredClone(s.balances)});
   s.configurationHistory=s.configurationHistory.slice(-1000);
-  const result={configVersion:s.configVersion,groups:s.groups,transferred,autoJoined,users:draft.users.map(user=>({id:user.id,quota:fairQuotaSummary(draft,user,now)})),...(body.action==='transfer-quota'?{fromUserId:sourceId,toUserId:targetId}:{deletedUserId:sourceId,transferToUserId:targetId})};
+  const result={configVersion:s.configVersion,groups:s.groups,transferred,autoJoined,shareChanges,users:draft.users.map(user=>({id:user.id,quota:fairQuotaSummary(draft,user,now)})),...(body.action==='transfer-quota'?{fromUserId:sourceId,toUserId:targetId}:{deletedUserId:sourceId,transferToUserId:targetId})};
   if(body.action==='preview-delete-member')result.configVersion=body.expectedConfigVersion;
   else {db.settings=draft.settings;db.users=draft.users;}
   return result;
