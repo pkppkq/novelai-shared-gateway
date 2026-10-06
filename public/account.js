@@ -11,7 +11,7 @@ const number = n => Number(n || 0).toLocaleString('zh-CN', {maximumFractionDigit
 async function load() {
   const data = await api('me'), q=data.quota; startSharedStatus();
   $('login').hidden=true; $('account').hidden=false; $('welcome').textContent=data.username+' · 我的额度';
-  $('group').textContent=q?.member ? `${q.groupName} · ${q.groupSize} 人均分 · 占总额度 ${number(q.share*100)}%` : '尚未分配到组，请联系管理员';
+  $('group').textContent=q?.member ? `${q.groupName} · ${q.groupSize} 人 · 个人份额 ${number(q.share*100)}%` : '尚未分配到组，请联系管理员';
   $('status').textContent=(stateNames[q?.status] || '等待分配额度') + (q?.autoAnlasFallback ? ' · V5 不足时自动按 Anlas 转扣（本站记账；上游可能消耗公共 V5）' : '');
   $('v5').textContent=`${number(q?.v5Available)} / ${number(q?.v5Capacity)}%`;
   $('v5bar').max=q?.v5Capacity || 1; $('v5bar').value=q?.v5Available || 0;
@@ -27,7 +27,7 @@ function run(fn) { return async event => { event?.preventDefault(); $('message')
 $('loginForm').onsubmit=run(async()=>{ await api('login',{username:$('username').value,password:$('password').value});$('password').value='';await load(); });
 $('refresh').onclick=run(load);
 $('logout').onclick=run(async()=>{await api('logout',{});stopSharedStatus();$('apiKey').value='';$('keyPanel').hidden=true;$('login').hidden=false;$('account').hidden=true;});
-$('showKey').onclick=run(async()=>{const data=await api('key');$('apiKey').value=data.apiKey;$('baseUrl').value=data.baseUrl;$('keyPanel').hidden=false;});
+$('showKey').onclick=run(async()=>{const data=await api('key');$('apiKey').value=data.apiKey;$('keyPanel').hidden=false;});
 $('hideKey').onclick=()=>{$('keyPanel').hidden=true;$('apiKey').value='';};
 $('copyKey').onclick=run(async()=>{await navigator.clipboard.writeText($('apiKey').value);$('message').textContent='已复制自己的 API Key';});
 load().catch(()=>{});
