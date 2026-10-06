@@ -1,5 +1,6 @@
+import { randomBytes } from 'node:crypto';
 import { setMemberCredentials, loginMember, checkMemberLoginRate, createMemberSession, authenticateMemberSession, logoutMemberSession } from './member-auth.js';
-import { configureFairGroups, fairQuotaSummary, syncFairQuota } from './fair-quota.js';
+import { configureFairGroups, fairQuotaSummary, syncFairQuota, manageFairMember } from './fair-quota.js';
 import { sharedAccountStatus } from './shared-status.js';
 const statusStreams = new Map();
 const error = (statusCode, message) => { throw Object.assign(new Error(message), { statusCode }); };
@@ -31,6 +32,11 @@ function setCookie(req, res, token) {
   res.setHeader('Set-Cookie', `${cookieName}=${token}; Path=/api/member; HttpOnly; SameSite=Strict; Max-Age=${token ? 43200 : 0}${local ? '' : '; Secure'}`);
 }
 
+function recentActivity(db,user) {
+  const jobs=db.jobs.filter(job=>job.userToken===user.token).slice(0,30);
+  return {total:jobs.length,done:jobs.filter(job=>job.status==='done').length,failed:jobs.filter(job=>job.status==='failed').length,queued:jobs.filter(job=>job.status==='queued').length,running:jobs.filter(job=>job.status==='running').length};
+}
+
 export async function handleMemberRoutes(req, res, url, deps) {
   const member = url.pathname.startsWith('/api/member/');
   const admin = url.pathname === '/api/admin/member-management';
@@ -45,14 +51,21 @@ export async function handleMemberRoutes(req, res, url, deps) {
       const payload = await store.update(db => {
         syncFairQuota(db);
         return { groups: db.settings.fairQuota?.groups || [], status: db.settings.fairQuota?.status,
-          autoAnlasFallback: db.settings.fairQuota?.autoAnlasFallback === true,
+          shared: sharedAccountStatus(db),autoAnlasFallback: db.settings.fairQuota?.autoAnlasFallback === true,
+          configVersion: db.settings.fairQuota?.configVersion ?? 1,
+          publicBaseUrl: db.settings.publicBaseUrl || process.env.PUBLIC_BASE_URL || (process.env.PUBLIC_HOST ? `https://${process.env.PUBLIC_HOST}` : ''),
           users: db.users.map(u => ({ id: u.id, username: u.memberAuth?.username || '', note: u.note || '', enabled: u.enabled !== false,
-            quota: fairQuotaSummary(db, u) })) };
+            quota: fairQuotaSummary(db, u), recentActivity: recentActivity(db, u) })) };
       }, { collections: ['settings'] });
       reply(res, 200, payload); return true;
     }
     if (req.method !== 'POST') error(405, 'method not allowed');
     const body = await json(req);
+    if (['transfer-quota','preview-delete-member','delete-member'].includes(body.action)) {
+      const preview=body.action==='preview-delete-member';
+      const result=await store.update(db=>manageFairMember(db,body),preview?{persist:false}:{collections:['users','settings'],immediate:true});
+      reply(res,200,result);return true;
+    }
     if (body.action === 'fallback-policy') {
       if (typeof body.enabled !== 'boolean') error(400, 'enabled 必须为布尔值');
       await store.update(db => {
@@ -63,9 +76,41 @@ export async function handleMemberRoutes(req, res, url, deps) {
       }, { collections: ['settings'], immediate: true });
       reply(res, 200, { autoAnlasFallback: body.enabled }); return true;
     }
+    if (body.action === 'member-key') {
+      const result=await store.update(db=>{
+        const user=db.users.find(u=>u.id===body.userId);if(!user)error(404,'成员不存在');
+        return {apiKey:user.token};
+      },{persist:false});
+      reply(res,200,result);return true;
+    }
+    if (body.action === 'member-status') {
+      if(typeof body.enabled!=='boolean')error(400,'enabled 必须为布尔值');
+      const result=await store.update(db=>{
+        const user=db.users.find(u=>u.id===body.userId);if(!user)error(404,'成员不存在');
+        if(!body.enabled&&(db.jobs.some(job=>job.userToken===user.token&&['queued','running'].includes(job.status))||Object.values(db.settings.fairQuota?.reservations||{}).some(charge=>charge.userId===user.id&&charge.status==='reserved')))error(409,'成员仍有排队或生成中的任务，请结清后停用');
+        user.enabled=body.enabled;user.updatedAt=new Date().toISOString();
+        // 停用时改变会话版本，之后重新启用也不能复活先前登录的 Cookie。
+        if(!body.enabled&&user.memberAuth)user.memberAuth={...user.memberAuth,version:randomBytes(16).toString('hex')};
+        return {id:user.id,enabled:user.enabled};
+      },{collections:['users'],immediate:true});
+      reply(res,200,result);return true;
+    }
+    if (body.action === 'preview-groups') {
+      if(body.redistributeRemaining!==undefined&&typeof body.redistributeRemaining!=='boolean')error(400,'redistributeRemaining 必须为布尔值');
+      const result=await store.update(db=>{
+        const configVersion=db.settings.fairQuota?.configVersion ?? 1;
+        // 预览只操作独立副本，恢复、重分与审计都不能污染真实账本。
+        const draft={...db,settings:structuredClone(db.settings),users:structuredClone(db.users)};
+        configureFairGroups(draft,body.groups,{actorId:'administrator',redistributeRemaining:body.redistributeRemaining===true});
+        return {groups:draft.settings.fairQuota.groups,users:draft.users.map(user=>({id:user.id,quota:fairQuotaSummary(draft,user)})),redistributeRemaining:body.redistributeRemaining===true,configVersion};
+      },{persist:false});
+      reply(res,200,result);return true;
+    }
     if (body.action === 'credentials') {
+      const hasGroup=body.groupId!==undefined&&body.groupId!==null&&body.groupId!=='';
+      if(hasGroup&&(typeof body.groupId!=='string'||body.userId))error(400,'只有创建新成员时可以指定 groupId');
       const result = await store.update(async db => {
-        const draft = { users: structuredClone(db.users) };
+        const draft = { ...db, users: structuredClone(db.users),settings:structuredClone(db.settings) };
         let userId = body.userId;
         if (!userId) {
           if (draft.users.length >= 200) error(409, '账户数已达上限');
@@ -74,16 +119,26 @@ export async function handleMemberRoutes(req, res, url, deps) {
           userId = user.id; draft.users.push(user);
         }
         const result = await setMemberCredentials(draft, userId, body);
-        db.users = draft.users;
-        return result;
-      }, { collections: ['users'], immediate: true });
+        if(hasGroup){
+          syncFairQuota(draft);
+          const groups=structuredClone(draft.settings.fairQuota?.groups || []);
+          const group=groups.find(g=>g.id===body.groupId);if(!group)error(400,'指定的共享组不存在');
+          group.members.push(userId);configureFairGroups(draft,groups,{actorId:'administrator'});
+        }
+        // 所有校验和密码派生成功后才整体提交，失败不会遗留用户或半份账本。
+        db.users = draft.users;if(hasGroup)db.settings=draft.settings;
+        return {...result,...(hasGroup?{groupId:body.groupId}:{})};
+      }, { collections: ['users',...(hasGroup?['settings']:[])], immediate: true });
       reply(res, 200, result); return true;
     }
     if (body.action === 'groups') {
+      if(body.redistributeRemaining!==undefined&&typeof body.redistributeRemaining!=='boolean')error(400,'redistributeRemaining 必须为布尔值');
       const result = await store.update(db => {
+        const currentVersion=db.settings.fairQuota?.configVersion ?? 1;
+        if(body.expectedConfigVersion!==undefined&&(!Number.isInteger(body.expectedConfigVersion)||body.expectedConfigVersion!==currentVersion))error(409,'分组已发生变化，请重新预览后保存');
         configureFairGroups(db, body.groups, { actorId: 'administrator', redistributeRemaining: body.redistributeRemaining === true });
         syncFairQuota(db);
-        return { groups: db.settings.fairQuota.groups, status: db.settings.fairQuota.status };
+        return { groups: db.settings.fairQuota.groups, status: db.settings.fairQuota.status,configVersion:db.settings.fairQuota.configVersion };
       }, { collections: ['settings'], immediate: true });
       reply(res, 200, result); return true;
     }

@@ -17,13 +17,17 @@ const totals = (s) => {for(const b of Object.values(s.balances)) b.anlasAvailabl
 const emptyBalance = () => ({v5Available:0,anlasAvailable:0,anlasFixedAvailable:0,anlasPurchasedAvailable:0});
 function upgradeGroups(s) {
   if (!s.groups) s.groups=s.members.map((id,i)=>({id:`group_${i+1}`,name:`第 ${i+1} 组`,members:[id]}));
+  for(const group of s.groups){group.share ??= .25;group.memberWeights=Object.fromEntries(group.members.map(id=>[id,group.memberWeights?.[id] ?? 1]));}
   s.version=2;s.configVersion ||= 1;s.configurationHistory ||= [];
   s.spent.fallbackFixed ||= 0;s.spent.fallbackPurchased ||= 0;s.spent.fallbackV5 ||= 0;
   s.fallbackBuffer ||= {fixed:0,purchased:0};s.fallbackTotalsByUser ||= {};s.sharedV5Debt ||= 0;
   return s;
 }
 const groupFor = (s,id) => s.groups.find(g=>g.members.includes(id));
-const weight = (s,id) => { const group=groupFor(s,id);return group?0.25/group.members.length:0; };
+const weight = (s,id) => { const group=groupFor(s,id);if(!group)return 0;const total=group.members.reduce((n,member)=>n+(group.memberWeights?.[member] ?? 1),0);return total>0?(group.share ?? .25)*((group.memberWeights?.[id] ?? 1)/total):0; };
+export function assertFairQuotaIdle(db) {
+  if(anyHeld(db.settings?.fairQuota || {reservations:{}})||rows(db.jobs).some(job=>['queued','running'].includes(job.status)))fail('有排队、运行或预留额度的任务，请结清后调整',409);
+}
 
 export function configureFairQuota(db, memberIds) {
   if (!Array.isArray(memberIds) || memberIds.length !== 4 || new Set(memberIds).size !== 4 || memberIds.some(id => typeof id !== 'string' || !id)) fail('公平分配需要四个不同的用户 ID', 400);
@@ -42,14 +46,28 @@ export function configureFairGroups(db, groups, options = {}) {
   if (!Array.isArray(groups) || groups.length!==4) fail('必须配置四个顶层共享组',400);
   const ids=new Set(),members=new Set(),users=rows(db.users);
   const normalized=groups.map(g=>{
-    if (!g || typeof g.id!=='string' || !g.id.trim() || ids.has(g.id) || !Array.isArray(g.members) || !g.members.length) fail('组 ID 必须唯一且每组至少有一名成员',400);
+    if (!g || typeof g.id!=='string' || !g.id.trim() || ids.has(g.id) || !Array.isArray(g.members)) fail('组 ID 必须唯一且成员必须为数组',400);
     ids.add(g.id);
     for(const id of g.members) {
-      if(typeof id!=='string' || members.has(id) || !users.some(u=>u.id===id && u.enabled===true)) fail('成员必须唯一且为已启用用户',400);
+      const user=users.find(u=>u.id===id);
+      const oldState=db.settings?.fairQuota;
+      const oldGroups=oldState?.groups || oldState?.members?.map((member,index)=>({id:`group_${index+1}`,members:[member]})) || [];
+      const remainsDisabled=user?.enabled===false&&oldGroups.some(group=>group.id===g.id&&group.members.includes(id));
+      // 停用只阻止登录与调用，不收回份额；已有停用成员留在原组时可继续管理其他成员。
+      if(typeof id!=='string' || members.has(id) || !user || !(user.enabled===true||remainsDisabled)) fail('成员必须唯一且有效；停用成员只能保留在原组',400);
       members.add(id);
     }
-    return {id:g.id,name:typeof g.name==='string'&&g.name.trim()?g.name.trim().slice(0,80):g.id,members:[...g.members]};
+    const share=g.share ?? 0.25;
+    if(typeof share!=='number'||!Number.isFinite(share)||share<0||share>1)fail('组份额必须介于 0 和 1',400);
+    if(!g.members.length&&share!==0)fail('空组份额必须为零',400);
+    if(g.memberWeights!==undefined&&(!g.memberWeights||Array.isArray(g.memberWeights)||typeof g.memberWeights!=='object'))fail('成员权重必须为对象',400);
+    const memberWeights=Object.fromEntries(g.members.map(id=>{const value=g.memberWeights?.[id] ?? 1;if(typeof value!=='number'||!Number.isFinite(value)||value<0||value>1000000)fail('成员权重必须介于 0 和 1000000',400);return [id,value];}));
+    if(share>0&&Object.values(memberWeights).reduce((n,value)=>n+value,0)<=0)fail('有份额的组至少需要一名正权重成员',400);
+    return {share,memberWeights,id:g.id,name:typeof g.name==='string'&&g.name.trim()?g.name.trim().slice(0,80):g.id,members:[...g.members]};
   });
+  if(!members.size)fail('至少保留一名共享成员',400);
+  if(Math.abs(normalized.reduce((n,g)=>n+g.share,0)-1)>1e-9)fail('四个组份额总和必须为 100%',400);
+  assertFairQuotaIdle(db);
   if(members.size>100) fail('共享成员总数不能超过 100',400);
   if(Object.keys(options).some(k=>!['now','redistributeRemaining','actorId'].includes(k))) fail('不支持的分组配置选项',400);
   if(options.redistributeRemaining!==undefined && typeof options.redistributeRemaining!=='boolean') fail('redistributeRemaining 必须是布尔值',400);
@@ -66,7 +84,7 @@ export function configureFairGroups(db, groups, options = {}) {
   if(!Number.isFinite(now) || now<0) fail('配置时间无效',400);
   const draft={...db,settings:{...db.settings,fairQuota:existing}};
   if(existing) syncFairQuota(draft,now);
-  const s=existing || configureFairQuota(draft,normalized.map(g=>g.members[0]));
+  const s=existing || configureFairQuota(draft,['__seed_1','__seed_2','__seed_3','__seed_4']);
   upgradeGroups(s);
   if(existing) {
     for(const [id,b] of Object.entries(s.balances)) {
@@ -84,14 +102,80 @@ export function configureFairGroups(db, groups, options = {}) {
   if(options.redistributeRemaining===true) {
     // 显式重分只转移该组现有钱包总额，不增发余额，也不重分历史消费。
     for(const g of normalized) for(const field of ['v5Available','anlasFixedAvailable','anlasPurchasedAvailable']) {
-      const amount=g.members.reduce((total,id)=>total+balances[id][field],0)/g.members.length;
-      for(const id of g.members) balances[id][field]=amount;
+      const amount=g.members.reduce((total,id)=>total+balances[id][field],0);
+      const totalWeight=g.members.reduce((total,id)=>total+g.memberWeights[id],0);
+      // 零份额组若全部权重为零，保留已有钱包，避免除零或静默抹去余额。
+      if(totalWeight>0)for(const id of g.members) balances[id][field]=amount*(g.memberWeights[id]/totalWeight);
     }
   }
   s.groups=normalized;s.members=[...members];s.balances=balances;s.version=2;s.configVersion+=1;
   s.configurationHistory.push({at:now,actorId:options.actorId || null,version:s.configVersion,before,after:structuredClone(normalized),beforeBalances,afterBalances:structuredClone(balances),redistributeRemaining:options.redistributeRemaining===true});
   s.configurationHistory=s.configurationHistory.slice(-1000);
   totals(s);db.settings.fairQuota=s;return s;
+}
+
+// 管理调账始终在独立副本上执行，所有验证通过才提交。
+export function manageFairMember(db, body, now=Date.now()) {
+  assertFairQuotaIdle(db);
+  const draft={...db,users:structuredClone(db.users),settings:structuredClone(db.settings)};
+  const s=syncFairQuota(draft,now);
+  if(!s?.enabled)fail('共享账本尚未配置',409);
+  if(!Number.isInteger(body.expectedConfigVersion)||body.expectedConfigVersion!==s.configVersion)fail('配置已变化，请刷新后重新预览',409);
+  const beforeBalances=structuredClone(s.balances),before=structuredClone(s.groups);
+  const sourceId=body.action==='transfer-quota'?body.fromUserId:body.userId;
+  const targetId=body.action==='transfer-quota'?body.toUserId:body.transferToUserId;
+  const source=draft.users.find(u=>u.id===sourceId),target=draft.users.find(u=>u.id===targetId);
+  if(!source)fail('成员不存在',404);
+  if(!target||target.id===source.id)fail('请选择另一名成员接收余额',400);
+  let autoJoined=null;
+  const transferred={v5:0,anlasFixed:0,anlasPurchased:0};
+  if(body.action==='transfer-quota') {
+    if(!s.balances[target.id])fail('转账接收成员必须已加入共享分组',400);
+    if(!s.balances[source.id])fail('转出成员未加入共享分组',400);
+    if(!Object.hasOwn(transferred,body.resource)||typeof body.amount!=='number'||!Number.isFinite(body.amount)||body.amount<=0)fail('转账资源或数量无效',400);
+    if(body.resource!=='v5'&&!Number.isInteger(body.amount))fail('Anlas 转账数量必须为整数',400);
+    const field=body.resource+'Available';
+    if(s.balances[source.id][field]+1e-9<body.amount)fail('转出成员余额不足',409);
+    if(body.resource==='v5'&&s.balances[target.id][field]+body.amount>100*weight(s,target.id)+1e-9)fail('接收成员 V5 超出容量，请先增加其份额或减少转账量',409);
+    s.balances[source.id][field]-=body.amount;s.balances[target.id][field]+=body.amount;transferred[body.resource]=body.amount;
+  } else {
+    const originalGroup=groupFor(s,source.id);
+    if(!s.balances[target.id]){
+      if(!originalGroup)fail('删除未分组成员时，请选择已分组成员接收；双方均未分组无法继承份额',400);
+      if(target.enabled!==true)fail('未分组接收成员必须已启用，才能继承共享份额',400);
+      // 直接替换原位置与权重，不先增加成员分摊，避免其他成员份额发生短暂或永久改变。
+      const memberWeight=originalGroup.memberWeights[source.id] ?? 1;
+      originalGroup.members=originalGroup.members.map(id=>id===source.id?target.id:id);
+      originalGroup.memberWeights[target.id]=memberWeight;delete originalGroup.memberWeights[source.id];
+      s.members=s.members.map(id=>id===source.id?target.id:id);s.balances[target.id]=emptyBalance();
+      autoJoined={userId:target.id,groupId:originalGroup.id,memberWeight,share:weight(s,target.id)};
+    }
+    if(s.members.includes(source.id)&&s.members.length<=1)fail('不能删除最后一名共享成员，请选择启用的未分组成员继承份额',409);
+    for(const resource of Object.keys(transferred)) {
+      const amount=s.balances[source.id]?.[resource+'Available'] || 0;
+      transferred[resource]=amount;s.balances[target.id][resource+'Available']+=amount;
+    }
+    // 删除接收的 V5 可以暂时超容量，恢复函数只在余额低于容量后继续入账。
+    delete s.balances[source.id];s.members=s.members.filter(id=>id!==source.id);
+    const sourceGroup=groupFor(s,source.id),targetGroup=groupFor(s,target.id);
+    if(sourceGroup){
+      const remainingWeight=sourceGroup.members.filter(id=>id!==source.id).reduce((n,id)=>n+(sourceGroup.memberWeights[id] ?? 1),0);
+      if(sourceGroup===targetGroup&&remainingWeight===0&&sourceGroup.share>0)targetGroup.memberWeights[target.id]=sourceGroup.memberWeights[source.id] || 1;
+      else if(sourceGroup!==targetGroup&&(sourceGroup.members.length===1||(remainingWeight===0&&sourceGroup.share>0))){
+        targetGroup.share=(targetGroup.share ?? .25)+(sourceGroup.share ?? .25);sourceGroup.share=0;
+        if(targetGroup.share>0&&targetGroup.members.reduce((n,id)=>n+(targetGroup.memberWeights[id] ?? 1),0)===0)targetGroup.memberWeights[target.id]=1;
+      }
+    }
+    s.groups=s.groups.map(g=>{const memberWeights={...g.memberWeights};delete memberWeights[source.id];return {...g,members:g.members.filter(id=>id!==source.id),memberWeights};});
+    draft.users=draft.users.filter(u=>u.id!==source.id);
+  }
+  totals(s);s.configVersion+=1;
+  s.configurationHistory.push({at:now,actorId:'administrator',action:body.action==='transfer-quota'?'transfer-quota':'delete-member',version:s.configVersion,sourceId,targetId,transferred,autoJoined,before,after:structuredClone(s.groups),beforeBalances,afterBalances:structuredClone(s.balances)});
+  s.configurationHistory=s.configurationHistory.slice(-1000);
+  const result={configVersion:s.configVersion,groups:s.groups,transferred,autoJoined,users:draft.users.map(user=>({id:user.id,quota:fairQuotaSummary(draft,user,now)})),...(body.action==='transfer-quota'?{fromUserId:sourceId,toUserId:targetId}:{deletedUserId:sourceId,transferToUserId:targetId})};
+  if(body.action==='preview-delete-member')result.configVersion=body.expectedConfigVersion;
+  else {db.settings=draft.settings;db.users=draft.users;}
+  return result;
 }
 
 function distribute(s, resource, delta) {

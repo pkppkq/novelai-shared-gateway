@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {configureFairGroups,configureFairQuota,syncFairQuota,reserveFairQuota,settleFairQuota,quoteFairRequest,fairQuotaSummary} from './fair-quota.js';
+import {manageFairMember,configureFairGroups,configureFairQuota,syncFairQuota,reserveFairQuota,settleFairQuota,quoteFairRequest,fairQuotaSummary} from './fair-quota.js';
 const NOW=1800000000000;
 const members=['a','b','c','d'];
 function fixture(percent=80){
@@ -299,4 +299,102 @@ test('恢复先偿还共享负债，普通V5调用遵守负债边界，公共条
  assert.throws(()=>reserveFairQuota(blocked,{id:'b'},job('normal-blocked'),blocked.accounts[0],NOW),/公共额度/);
  const depleted=fixture(0);depleted.settings.fairQuota.autoAnlasFallback=true;depleted.accounts[0].v5UsageIsNegative=true;
  const paid=reserveFairQuota(depleted,{id:'a'},job('zero-allowed'),depleted.accounts[0],NOW);assert.equal(paid.billingMode,'anlas_fallback');assert.equal(paid.sharedV5Reserved,0);
+});
+
+test('已停用成员保留原组与份额，允许管理其他组但不允许新增或移动停用成员',()=>{
+ const db=enableUsers(fixture(),['e']);db.users.find(u=>u.id==='a').enabled=false;
+ const groups=grouped();groups[1].members.push('e');configureFairGroups(db,groups,{now:NOW});
+ assert.equal(db.settings.fairQuota.balances.a.v5Available,20);assert.equal(fairQuotaSummary(db,{id:'a'},NOW).share,.25);
+ syncFairQuota(db,NOW+300000);assert.equal(db.settings.fairQuota.balances.a.v5Available,20.125);
+ const moved=structuredClone(groups);moved[0].members=['e'];moved[1].members=['b','a'];assert.throws(()=>configureFairGroups(db,moved,{now:NOW+300000}),/停用成员只能保留/);
+ const existing=structuredClone(db.settings.fairQuota);db.users.push({id:'disabled-new',enabled:false});const extra=structuredClone(groups);extra[1].members.push('disabled-new');
+ assert.throws(()=>configureFairGroups(db,extra,{now:NOW+300000}),/停用成员只能保留/);assert.deepEqual(db.settings.fairQuota,existing);
+});
+
+
+test('组比例和成员权重控制容量、恢复及充值；重分仅限组内并且守恒',()=>{
+ const db=fixture();db.users=['a','b','c','d','e'].map(id=>({id,enabled:true}));
+ const groups=structuredClone(db.settings.fairQuota.groups);groups[0].members.push('e');groups[0].memberWeights={a:3,e:1};groups.forEach((g,i)=>g.share=[.4,.3,.2,.1][i]);
+ configureFairGroups(db,groups,{now:NOW,redistributeRemaining:true});
+ assert.ok(Math.abs(fairQuotaSummary(db,{id:'a'},NOW).share-.3)<1e-12);assert.equal(fairQuotaSummary(db,{id:'e'},NOW).v5Capacity,10);
+ assert.equal(db.settings.fairQuota.balances.a.anlasFixedAvailable,1875);assert.equal(db.settings.fairQuota.balances.e.anlasFixedAvailable,625);assert.equal(db.settings.fairQuota.balances.b.anlasFixedAvailable,2500);
+ Object.assign(db.accounts[0],{quotaFixed:11000,quotaCheckedAt:NOW+1000,v5UsagePercent:80});syncFairQuota(db,NOW+1000);
+ assert.equal(db.settings.fairQuota.balances.a.anlasFixedAvailable,2175);assert.equal(db.settings.fairQuota.balances.e.anlasFixedAvailable,725);
+ assert.ok(Math.abs(db.settings.fairQuota.balances.a.v5Available-15-.3/600)<1e-8);
+ const saved=structuredClone(db);groups[0].memberWeights.a=-1;assert.throws(()=>configureFairGroups(db,groups,{now:NOW}),/权重/);assert.deepEqual(db,saved);
+});
+
+test('单人调账严格守恒，版本过期、余额不足、容量超额及任务活动均原子拒绝',()=>{
+ const db=fixture();db.users=members.map(id=>({id,enabled:true,token:'key-'+id}));db.jobs=[];
+ const transfer=(changes={})=>manageFairMember(db,{action:'transfer-quota',fromUserId:'a',toUserId:'b',resource:'anlasFixed',amount:100,expectedConfigVersion:db.settings.fairQuota.configVersion,...changes},NOW);
+ transfer();assert.equal(db.settings.fairQuota.balances.a.anlasFixedAvailable,2400);assert.equal(db.settings.fairQuota.balances.b.anlasFixedAvailable,2600);
+ let before=structuredClone(db);for(const bad of [{amount:2500},{resource:'v5',amount:6},{expectedConfigVersion:1},{toUserId:'a'},{resource:'anlasFixed',amount:0.5}]){assert.throws(()=>transfer(bad));assert.deepEqual(db,before);}
+ transfer({resource:'v5',amount:5});assert.equal(db.settings.fairQuota.balances.b.v5Available,25);
+ db.jobs.push({status:'queued',userToken:'other'});before=structuredClone(db);assert.throws(()=>transfer(),/排队/);assert.deepEqual(db,before);
+ db.jobs[0].status='done';db.settings.fairQuota.reservations.pending={status:'reserved'};assert.throws(()=>transfer(),/预留/);
+});
+
+test('删除预览无写入，删除转移全部余额与空组份额且保留任务和历史审计',()=>{
+ const db=fixture(100);db.users=members.map(id=>({id,enabled:true,token:'key-'+id}));db.jobs=[{id:'historical',status:'done',userToken:'key-a'}];
+ db.settings.fairQuota.reservations.historical={status:'settled',userId:'a',resource:'v5',amount:.1};
+ const body={action:'preview-delete-member',userId:'a',transferToUserId:'b',expectedConfigVersion:1};const before=structuredClone(db);
+ const preview=manageFairMember(db,body,NOW);assert.deepEqual(db,before);assert.equal(preview.configVersion,1);assert.equal(preview.transferred.v5,25);assert.equal(preview.groups[0].share,0);assert.equal(preview.groups[1].share,.5);
+ const result=manageFairMember(db,{...body,action:'delete-member'},NOW);assert.equal(result.configVersion,2);assert.equal(db.users.length,3);assert.equal(db.settings.fairQuota.balances.a,undefined);assert.equal(db.settings.fairQuota.balances.b.v5Available,50);assert.equal(db.settings.fairQuota.balances.b.anlasFixedAvailable,5000);assert.deepEqual(db.jobs,before.jobs);assert.deepEqual(db.settings.fairQuota.reservations,before.settings.fairQuota.reservations);assert.equal(db.settings.fairQuota.configurationHistory.at(-1).sourceId,'a');
+ Object.assign(db.accounts[0],{quotaFixed:11000,quotaCheckedAt:NOW+1000});syncFairQuota(db,NOW+1000);assert.equal(db.settings.fairQuota.balances.b.anlasFixedAvailable,5500);assert.equal(db.settings.fairQuota.balances.c.anlasFixedAvailable,2750);
+ const total=Object.values(db.settings.fairQuota.balances).reduce((n,b)=>n+b.anlasFixedAvailable,0);assert.equal(total,11000);
+ const invalid=structuredClone(db.settings.fairQuota.groups);invalid[0].share=.25;invalid[1].share=.25;assert.throws(()=>configureFairGroups(db,invalid,{now:NOW+1000}),/空组/);
+});
+
+test('删除同组成员可保留超容量V5但不再恢复，最后成员和活动任务不能删除',()=>{
+ const db=fixture(100);db.users=members.map(id=>({id,enabled:true}));db.jobs=[];
+ const groups=structuredClone(db.settings.fairQuota.groups);groups[0].members.push('b');groups[1].members=[];groups.forEach((g,i)=>g.share=[.5,0,.25,.25][i]);configureFairGroups(db,groups,{now:NOW});
+ // 人工转入形成超容量钱包，用删除验证不会剪裁合法余额。
+ db.settings.fairQuota.balances.a.v5Available=45;db.settings.fairQuota.balances.b.v5Available=25;db.settings.fairQuota.balances.c.v5Available=15;db.settings.fairQuota.balances.d.v5Available=15;
+ manageFairMember(db,{action:'delete-member',userId:'a',transferToUserId:'b',expectedConfigVersion:2},NOW);assert.equal(db.settings.fairQuota.balances.b.v5Available,70);syncFairQuota(db,NOW+1000);assert.equal(db.settings.fairQuota.balances.b.v5Available,70);
+ db.jobs.push({status:'running'});const before=structuredClone(db);assert.throws(()=>manageFairMember(db,{action:'delete-member',userId:'b',transferToUserId:'c',expectedConfigVersion:3},NOW),/运行/);assert.deepEqual(db,before);
+});
+
+
+test('唯一共享成员可被启用的未分组成员原位继承；预览无写入且余额守恒',()=>{
+ const db=fixture(100);db.users=[...members,'number1','number2'].map(id=>({id,enabled:true,token:'key-'+id}));db.jobs=[];
+ for(const id of ['b','c','d'])manageFairMember(db,{action:'delete-member',userId:id,transferToUserId:'a',expectedConfigVersion:db.settings.fairQuota.configVersion},NOW);
+ assert.equal(fairQuotaSummary(db,{id:'a'},NOW).share,1);assert.equal(db.settings.fairQuota.balances.a.anlasFixedAvailable,10000);
+ const body={action:'preview-delete-member',userId:'a',transferToUserId:'number1',expectedConfigVersion:db.settings.fairQuota.configVersion};const before=structuredClone(db);
+ const preview=manageFairMember(db,body,NOW);assert.deepEqual(db,before);assert.deepEqual(preview.autoJoined,{userId:'number1',groupId:'group_1',memberWeight:1,share:1});assert.equal(preview.users.find(u=>u.id==='number1').quota.anlasFixedAvailable,10000);assert.equal(preview.users.find(u=>u.id==='number2').quota.member,false);
+ manageFairMember(db,{...body,action:'delete-member'},NOW);assert.deepEqual(db.settings.fairQuota.members,['number1']);assert.equal(db.settings.fairQuota.balances.number1.v5Available,100);assert.equal(db.settings.fairQuota.balances.number1.anlasFixedAvailable,10000);assert.equal(db.settings.fairQuota.balances.a,undefined);assert.equal(db.settings.fairQuota.groups[0].share,1);assert.deepEqual(db.settings.fairQuota.groups[0].memberWeights,{number1:1});
+});
+
+test('未分组接收者继承源权重，不改变同组其他成员；无效接收者与转账仍拒绝',()=>{
+ const db=fixture(80);db.users=[...members,'e','new','other','disabled'].map(id=>({id,enabled:id!=='disabled'}));db.jobs=[];
+ const groups=structuredClone(db.settings.fairQuota.groups);groups[0].members.push('e');groups[0].memberWeights={a:3,e:1};configureFairGroups(db,groups,{now:NOW,redistributeRemaining:true});
+ let before=structuredClone(db);const body={action:'preview-delete-member',userId:'a',transferToUserId:'new',expectedConfigVersion:db.settings.fairQuota.configVersion};
+ for(const invalid of [{...body,transferToUserId:'disabled'},{...body,userId:'other'},{action:'transfer-quota',fromUserId:'a',toUserId:'new',resource:'anlasFixed',amount:1,expectedConfigVersion:body.expectedConfigVersion}]){assert.throws(()=>manageFairMember(db,invalid,NOW));assert.deepEqual(db,before);}
+ const priorE=fairQuotaSummary(db,{id:'e'},NOW),priorA=fairQuotaSummary(db,{id:'a'},NOW);
+ const result=manageFairMember(db,{...body,action:'delete-member'},NOW);assert.deepEqual(result.autoJoined,{userId:'new',groupId:'group_1',memberWeight:3,share:.1875});assert.deepEqual(fairQuotaSummary(db,{id:'e'},NOW),priorE);assert.equal(fairQuotaSummary(db,{id:'new'},NOW).v5Available,priorA.v5Available);assert.equal(fairQuotaSummary(db,{id:'new'},NOW).share,priorA.share);assert.deepEqual(db.settings.fairQuota.groups[0].members,['new','e']);
+});
+
+
+test('具体份额可含零：全局份额守恒，零成员保留余额且恢复充值均不新增',()=>{
+ const db=fixture(80);db.users=[...members,'e'].map(id=>({id,enabled:true}));
+ const groups=structuredClone(db.settings.fairQuota.groups);groups[0].members.push('e');groups[0].memberWeights={a:0,e:1};groups.forEach((g,i)=>g.share=[.6,.4,0,0][i]);groups[2].memberWeights={c:0};
+ configureFairGroups(db,groups,{now:NOW});const before=structuredClone(db.settings.fairQuota.balances);
+ assert.equal(members.concat('e').reduce((n,id)=>n+fairQuotaSummary(db,{id},NOW).share,0),1);assert.equal(fairQuotaSummary(db,{id:'a'},NOW).share,0);assert.equal(fairQuotaSummary(db,{id:'c'},NOW).share,0);
+ Object.assign(db.accounts[0],{quotaFixed:11000,quotaCheckedAt:NOW+1000,v5UsagePercent:80});syncFairQuota(db,NOW+1000);
+ assert.deepEqual(db.settings.fairQuota.balances.a,before.a);assert.deepEqual(db.settings.fairQuota.balances.c,before.c);assert.deepEqual(db.settings.fairQuota.balances.d,before.d);assert.equal(db.settings.fairQuota.balances.e.anlasFixedAvailable,600);
+ configureFairGroups(db,groups,{now:NOW+1000,redistributeRemaining:true});assert.deepEqual(db.settings.fairQuota.balances.c,before.c);assert.ok(Object.values(db.settings.fairQuota.balances).every(b=>Object.values(b).every(Number.isFinite)));
+ const invalid=structuredClone(groups);invalid[0].memberWeights.e=0;const saved=structuredClone(db);assert.throws(()=>configureFairGroups(db,invalid,{now:NOW+1000}),/正权重/);assert.deepEqual(db,saved);
+});
+
+test('零权重成员删除替换可继承零，删除最后正权重成员不会遗失组份额',()=>{
+ const db=fixture(80);db.users=[...members,'new','e'].map(id=>({id,enabled:true}));db.jobs=[];
+ const groups=structuredClone(db.settings.fairQuota.groups);groups[0].members.push('e');groups[0].memberWeights={a:0,e:1};configureFairGroups(db,groups,{now:NOW});
+ const result=manageFairMember(db,{action:'delete-member',userId:'a',transferToUserId:'new',expectedConfigVersion:2},NOW);assert.equal(result.autoJoined.memberWeight,0);assert.equal(result.autoJoined.share,0);assert.equal(fairQuotaSummary(db,{id:'new'},NOW).share,0);
+ manageFairMember(db,{action:'delete-member',userId:'e',transferToUserId:'new',expectedConfigVersion:3},NOW);assert.equal(fairQuotaSummary(db,{id:'new'},NOW).share,.25);assert.ok(Number.isFinite(fairQuotaSummary(db,{id:'new'},NOW).v5Capacity));
+});
+
+test('零份额全零权重组删除替换仍为零，正份额转至全零组指定接收者',()=>{
+ const db=fixture(80);db.users=[...members,'new'].map(id=>({id,enabled:true}));db.jobs=[];
+ const groups=structuredClone(db.settings.fairQuota.groups);groups.forEach((g,i)=>g.share=i===0?1:0);groups[1].memberWeights={b:0};configureFairGroups(db,groups,{now:NOW});
+ const result=manageFairMember(db,{action:'delete-member',userId:'b',transferToUserId:'new',expectedConfigVersion:2},NOW);assert.equal(result.autoJoined.share,0);assert.equal(result.autoJoined.memberWeight,0);
+ manageFairMember(db,{action:'delete-member',userId:'a',transferToUserId:'new',expectedConfigVersion:3},NOW);assert.equal(fairQuotaSummary(db,{id:'new'},NOW).share,1);assert.equal(db.settings.fairQuota.groups[0].share,0);assert.equal(db.settings.fairQuota.groups[1].share,1);
 });
