@@ -1,0 +1,45 @@
+NovelAI Shared Gateway Noncommercial Source License 1.0
+
+Copyright (c) 2026 pkppkq and contributors to the shared-gateway modifications.
+
+1. Scope
+This license applies only to original additions and modifications made for
+NovelAI Shared Gateway, including its member portal, quota-sharing logic,
+administration, bootstrap scripts, and accompanying documentation. It does
+not replace or restrict licenses granted by third-party copyright holders.
+The upstream Nai2API material remains subject to its MIT license; see
+UPSTREAM-LICENSE and NOTICE.md.
+
+2. Noncommercial permission
+Permission is granted, free of charge, to use, study, copy, modify, and
+redistribute the covered additions and modifications solely for noncommercial
+purposes, provided that this license and all attribution notices are retained.
+Redistributed modifications must remain subject to these noncommercial terms.
+
+3. Commercial use prohibited
+Without separate written permission from the applicable copyright holders,
+you may not use the covered additions or modifications for commercial
+advantage or monetary compensation. Prohibited uses include selling the
+software or access to it, paid API gateways, paid account or quota sharing,
+commercial hosted services, and use in commercial business operations.
+Personal, educational, and research use without commercial advantage or
+monetary compensation is permitted. Public availability does not imply
+permission for commercial use.
+
+4. No trademark or service rights
+No trademark rights or rights to third-party services, accounts, subscriptions,
+or APIs are granted. Obtain those rights separately where required.
+
+5. Termination
+These permissions terminate automatically if you violate this license.
+
+6. Disclaimer
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO MERCHANTABILITY, FITNESS FOR A PARTICULAR
+PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+This is a source-available noncommercial license, not an OSI-approved
+open-source license. For commercial permissions, contact the repository owner.

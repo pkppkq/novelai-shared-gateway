@@ -1,0 +1,10 @@
+# 修改为自己的域名，并与 .env 的 PUBLIC_HOST 保持一致。
+gateway.example.com {
+    @private path /admin* /api/admin* /api/health /memory
+    respond @private 404
+    reverse_proxy 127.0.0.1:18081 {
+        header_up Host gateway.example.com
+        flush_interval -1
+    }
+    # 不启用包含查询参数的访问日志；兼容 URL 可能携带调用 Key。
+}

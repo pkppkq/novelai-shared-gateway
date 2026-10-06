@@ -1,0 +1,14 @@
+.git
+node_modules
+.env
+.env.*
+data
+secrets
+logs
+backups
+test-results
+*.sqlite*
+*.db*
+*.pem
+*.key
+*.log
