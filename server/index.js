@@ -1,3 +1,6 @@
+import { readNativeBody } from './native-body.js';
+import { parseNativeImageRequest as parseValidatedNativeImageRequest, parseNativeAuxiliaryRequest } from './native-image.js';
+import { privateAccessAllowed } from './public-hosts.js';
 import { launcherSubscription } from './launcher-subscription.js';
 import { sharedSurface } from './shared-surface.js';
 import { handleMemberRoutes } from './member-routes.js';
@@ -110,14 +113,7 @@ const server = http.createServer(async (req, res) => {
   // PRIVATE_ACCESS_GUARD
   // 私有服务只接受本机隧道入口，阻断跨站请求与域名重绑定。
   if (process.env.PRIVATE_MODE === 'true') {
-    const requestHost = String(req.headers.host || '').toLowerCase();
-    const origin = req.headers.origin;
-    const hostAllowed = /^(127\.0\.0\.1|localhost)(:\d{1,5})?$/.test(requestHost) || (process.env.PUBLIC_MODE === 'true' && requestHost === process.env.PUBLIC_HOST);
-    // 公网插件允许跨域；实际业务仍由网关 Key 鉴权，管理接口保留隔离。
-    const publicClient = process.env.PUBLIC_MODE === 'true' && requestHost === process.env.PUBLIC_HOST
-      && !/^\/(?:api\/admin|admin|memory)(?:[/?]|$)/.test(req.url || '/');
-    const originAllowed = publicClient || !origin || origin === `http://${requestHost}` || origin === `https://${requestHost}`;
-    if (!hostAllowed || !originAllowed || (!publicClient && req.headers['sec-fetch-site'] === 'cross-site')) {
+    if (!privateAccessAllowed(req)) {
       res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
       res.end('Private access only');
       return;
@@ -131,7 +127,7 @@ const server = http.createServer(async (req, res) => {
       sendImage(res, 200, image.mimeType, image.buffer, { 'x-error': '1' });
       return;
     }
-    if (['/ai/generate-image', '/v1/ai/generate-image'].includes(String(req.url || '').split('?')[0])) {
+    if (/^\/(?:v1\/)?ai\/(?:generate-image|encode-vibe|upscale)$/.test(String(req.url || '').split('?')[0])) {
       const message = publicErrorMessage(error.message || 'Internal server error');
       sendJson(res, error.statusCode || 500, { message, error: message });
       return;
@@ -286,7 +282,7 @@ async function route(req, res) {
   }
 
   // 第三方 NAI 启动器只读取调用者本地钱包，不转发共享上游的原始订阅数据。
-  if (method === 'GET' && ['/user/subscription', '/v1/user/subscription'].includes(url.pathname)) {
+  if (method === 'GET' && ['/user/subscription', '/v1/user/subscription', '/ai/user/subscription', '/v1/ai/user/subscription'].includes(url.pathname)) {
     const subscription = await store.update(db => launcherSubscription(db, getUserOrThrow(db, tokenFrom(req, url))), { collections: ['settings'] });
     sendJson(res, 200, subscription);
     return;
@@ -305,6 +301,11 @@ async function route(req, res) {
 
   if (method === 'POST' && ['/ai/generate-image', '/v1/ai/generate-image'].includes(url.pathname)) {
     await handleNativeImageGeneration(req, res);
+    return;
+  }
+
+  if (method === 'POST' && ['/ai/encode-vibe', '/v1/ai/encode-vibe', '/ai/upscale', '/v1/ai/upscale'].includes(url.pathname)) {
+    await handleNativeAuxiliary(req, res, url.pathname.endsWith('/encode-vibe') ? 'encode-vibe' : 'upscale');
     return;
   }
 
@@ -654,63 +655,39 @@ async function saveOfficialImage(job, image) {
 
 // 原生插件不经过聊天模板；在进入扣费队列前验证实际生成参数。
 function parseNativeImageRequest(body) {
-  if (!body || typeof body !== 'object' || Array.isArray(body)) throw httpError(400, 'Expected a JSON object.');
-  if ((body.action ?? 'generate') !== 'generate') throw httpError(422, 'Only action=generate is supported; img2img and infill are not supported.');
-  if (!['nai-diffusion-4-5-full', 'nai-diffusion-4-5-curated', 'nai-diffusion-5-full'].includes(body.model)) throw httpError(422, 'Unsupported NovelAI model.');
-  if (typeof body.input !== 'string' || !body.input.trim()) throw httpError(400, 'input must be a non-empty prompt string.');
-  if (!body.parameters || typeof body.parameters !== 'object' || Array.isArray(body.parameters)) throw httpError(400, 'parameters must be an object.');
-  const parameters = structuredClone(body.parameters);
-  const integer = (name, min, max, fallback) => {
-    const value = parameters[name] ?? fallback;
-    if (!Number.isInteger(value) || value < min || value > max) throw httpError(422, `${name} must be an integer between ${min} and ${max}.`);
-    parameters[name] = value;
-    return value;
-  };
-  const width = integer('width', 128, 2048);
-  const height = integer('height', 128, 2048);
-  const steps = integer('steps', 1, 50);
-  integer('n_samples', 1, 1, 1);
-  const hasValue = (value) => value !== null && value !== undefined && value !== '' && value !== false && (!Array.isArray(value) || value.length > 0);
-  for (const [name, value] of Object.entries(parameters)) {
-    if ((/reference.*image|^image$|^mask$|^controlnet_(condition|model)$|^characterRef$/i.test(name)) && hasValue(value)) throw httpError(422, `Parameter ${name} is not supported by this text-to-image gateway.`);
-  }
-  for (const name of ['scale', 'cfg_rescale']) {
-    if (parameters[name] !== undefined && (typeof parameters[name] !== 'number' || !Number.isFinite(parameters[name]))) throw httpError(422, `${name} must be a finite number.`);
-  }
-  if (parameters.seed !== undefined && (!Number.isSafeInteger(parameters.seed) || parameters.seed < -1)) throw httpError(422, 'seed must be a safe non-negative integer or -1 for random.');
-  // 插图8随机种子可超过32位，按模归一化；合法32位种子保持不变。
-  if (parameters.seed === undefined || parameters.seed === -1) parameters.seed = randomBytes(4).readUInt32LE(0);
-  else parameters.seed %= 4294967296;
-  // 插件有时附带 msgpack 标记，但此接口始终返回单张图片 ZIP。
-  delete parameters.stream;
-  return {
-    prompt: body.input, tag: body.input, artist: '', model: body.model,
-    negative: parameters.negative_prompt ?? '', width, height, steps, requestedSteps: steps,
-    scale: parameters.scale ?? 5, cfg: parameters.cfg_rescale ?? 0,
-    sampler: parameters.sampler ?? 'k_dpmpp_2m_sde', noiseSchedule: parameters.noise_schedule ?? 'karras',
-    seed: parameters.seed, nativeParameters: parameters, nocache: true
-  };
+  return parseValidatedNativeImageRequest(body);
 }
 
 // 无压缩 ZIP 保留上游图片原始字节，兼容酒馆插件的 JSZip 读取流程。
 function nativeImageZip(buffer, filename = 'image_0.png') {
-  const name = Buffer.from(filename, 'utf8');
-  let crc = 0xffffffff;
-  for (const byte of buffer) {
-    crc ^= byte;
-    for (let i = 0; i < 8; i++) crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0);
+  return nativeImagesZip([{buffer, filename}]);
+}
+
+// 每张图片独立排队与结算，ZIP 同时支持成功图片和部分失败的结果清单。
+function nativeImagesZip(entries) {
+  const locals = [], centrals = [];
+  let offset = 0;
+  for (const {buffer, filename} of entries) {
+    const name = Buffer.from(filename, 'utf8');
+    let crc = 0xffffffff;
+    for (const byte of buffer) {
+      crc ^= byte;
+      for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0);
+    }
+    crc = (crc ^ 0xffffffff) >>> 0;
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0); local.writeUInt16LE(20, 4);
+    local.writeUInt32LE(crc, 14); local.writeUInt32LE(buffer.length, 18); local.writeUInt32LE(buffer.length, 22); local.writeUInt16LE(name.length, 26);
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0); central.writeUInt16LE(20, 4); central.writeUInt16LE(20, 6);
+    central.writeUInt32LE(crc, 16); central.writeUInt32LE(buffer.length, 20); central.writeUInt32LE(buffer.length, 24); central.writeUInt16LE(name.length, 28); central.writeUInt32LE(offset, 42);
+    locals.push(local, name, buffer); centrals.push(central, name);
+    offset += local.length + name.length + buffer.length;
   }
-  crc = (crc ^ 0xffffffff) >>> 0;
-  const local = Buffer.alloc(30);
-  local.writeUInt32LE(0x04034b50, 0); local.writeUInt16LE(20, 4);
-  local.writeUInt32LE(crc, 14); local.writeUInt32LE(buffer.length, 18); local.writeUInt32LE(buffer.length, 22); local.writeUInt16LE(name.length, 26);
-  const central = Buffer.alloc(46);
-  central.writeUInt32LE(0x02014b50, 0); central.writeUInt16LE(20, 4); central.writeUInt16LE(20, 6);
-  central.writeUInt32LE(crc, 16); central.writeUInt32LE(buffer.length, 20); central.writeUInt32LE(buffer.length, 24); central.writeUInt16LE(name.length, 28);
-  const end = Buffer.alloc(22);
-  end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(1, 8); end.writeUInt16LE(1, 10);
-  end.writeUInt32LE(central.length + name.length, 12); end.writeUInt32LE(local.length + name.length + buffer.length, 16);
-  return Buffer.concat([local, name, buffer, central, name, end]);
+  const central = Buffer.concat(centrals), end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(entries.length, 8); end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(central.length, 12); end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...locals, central, end]);
 }
 
 // 仅记录请求结构和生成数值，不记录凭据、提示词、负面词或图片原文。
@@ -753,9 +730,9 @@ async function handleNativeImageGeneration(req, res) {
   res.setHeader('X-Nai-Diagnostic-Id', diagnosticId);
   res.once?.('finish', () => logNativeDiagnostic(diagnosticId, 'finished', { status: res.statusCode }));
   let body;
-  try { body = await readJson(req); }
+  try { body = await readNativeBody(req, { jsonReader: req => readJson(req, 32 * 1024 * 1024) }); }
   catch (error) {
-    logNativeDiagnostic(diagnosticId, 'rejected', { status: error.statusCode || 400, reason: 'Invalid JSON request body.' });
+    logNativeDiagnostic(diagnosticId, 'rejected', { status: error.statusCode || 400, reason: 'Invalid native request body.' });
     throw error;
   }
   logNativeDiagnostic(diagnosticId, 'received', nativeRequestDiagnostic(body));
@@ -770,21 +747,64 @@ async function handleNativeImageGeneration(req, res) {
   }
   request.allowPurchasedAnlas = body.allowPurchasedAnlas === true;
   logNativeDiagnostic(diagnosticId, 'validated', { seed: request.seed, width: request.width, height: request.height, steps: request.steps });
+  const count = request.sampleCount || request.nativeParameters?.n_samples || 1;
   const deadline = Date.now() + openAiChatTimeoutMs;
+  const entries = [], results = [];
+  // 一个多图请求最多持有一个排队任务，不能一次占满共享并发。
+  for (let index = 0; index < count; index++) {
+    if (req.aborted || res.destroyed) break;
+    const single = structuredClone(request);
+    single.sampleCount = 1; single.n_samples = 1;
+    single.seed = (request.seed + index) % 4294967296;
+    single.nativeParameters.n_samples = 1; single.nativeParameters.seed = single.seed;
+    try {
+      // 计价失败必须在入队前返回，不留下无法计价的任务。
+      quoteFairRequest(single);
+      const result = await runNativeQueuedRequest(token, single, deadline, diagnosticId);
+      const filename = `image_${index}.${imageExtension(result.saved.mimeType || '')}`;
+      entries.push({buffer: await readStoredImage(result.saved), filename});
+      results.push({index, status: 'done', filename});
+    } catch (error) {
+      if (!entries.length) throw error;
+      results.push({index, status: 'failed', message: publicErrorMessage(error.message || '生成失败')});
+      break;
+    }
+  }
+  if (!entries.length) throw httpError(499, '客户端已断开，请在成员页面检查任务结果');
+  const completed = entries.length;
+  if (count > 1) entries.push({filename: 'results.json', buffer: Buffer.from(JSON.stringify({requested:count, completed, remaining:count-completed, billing:'independent_single_images', results}), 'utf8')});
+  const archive = nativeImagesZip(entries);
+  sendImage(res, 200, 'application/zip', archive, { 'cache-control': 'no-store', 'content-disposition': 'attachment; filename="images.zip"', 'X-Nai-Image-Count': String(completed), 'X-Nai-Partial': String(completed < count) });
+}
+
+async function runNativeQueuedRequest(token, request, deadline, diagnosticId) {
+  if (Date.now() >= deadline) throw httpError(504, '生成等待超时，请减少一次生成张数');
   const job = await createJob(token, request, { native: true, source: 'novelai-native', deadlineAt: new Date(deadline).toISOString() });
   logNativeDiagnostic(diagnosticId, 'queued', { jobId: job.id });
   const pending = waitForJobResult(job.id, deadline);
   scheduleQueueDrain();
   const result = await pending;
-  if (!result) {
-    await timeoutJob(job.id);
-    throw httpError(504, 'direct generate timeout');
-  }
+  if (!result) { await timeoutJob(job.id); throw httpError(504, 'direct generate timeout'); }
   if (result.error) throw httpError(result.statusCode || (isTimeoutResultMessage(result.error) ? 504 : 500), result.error);
-  const image = result.saved;
-  const buffer = await readStoredImage(image);
-  const archive = nativeImageZip(buffer, `image_0.${imageExtension(image.mimeType || '')}`);
-  sendImage(res, 200, 'application/zip', archive, { 'cache-control': 'no-store', 'content-disposition': 'attachment; filename="images.zip"' });
+  return result;
+}
+
+async function handleNativeAuxiliary(req, res, operation) {
+  const token = bearerToken(req);
+  if (!token.startsWith('STA1N-')) throw httpError(401, 'Existing gateway key required.');
+  const user = await store.readUserByToken(token);
+  if (!user || user.enabled === false) throw httpError(401, 'invalid token.');
+  const diagnosticId = randomBytes(8).toString('hex');
+  res.setHeader('X-Nai-Diagnostic-Id', diagnosticId);
+  const body = await readNativeBody(req, { jsonReader: req => readJson(req, 32 * 1024 * 1024) });
+  const request = parseNativeAuxiliaryRequest(body, operation);
+  request.allowPurchasedAnlas = body.allowPurchasedAnlas === true;
+  quoteFairRequest(request);
+  const result = await runNativeQueuedRequest(token, request, Date.now() + openAiChatTimeoutMs, diagnosticId);
+  const buffer = await readStoredImage(result.saved);
+  // 编码数据保持原始二进制，启动器负责转为 base64；放大保持图片 ZIP 协议。
+  if (operation === 'encode-vibe') sendImage(res, 200, 'application/octet-stream', buffer, { 'cache-control': 'no-store' });
+  else sendImage(res, 200, 'application/zip', nativeImageZip(buffer), { 'cache-control': 'no-store' });
 }
 
 async function handleOpenAiChatCompletion(req, res) {
@@ -1493,15 +1513,17 @@ async function refreshAccountQuotas(body) {
   });
 
   const resultMap = new Map(results.map((result) => [result.id, result]));
+  const targetTokens = new Map(targets.map(target => [target.id, target.token]));
   const accounts = await store.update((db) => {
     db.accounts.forEach((account) => {
       const result = resultMap.get(account.id);
-      if (!result) return;
+      // 凭据已更新或较新的验证已完成时，忽略旧查询结果。
+      if (!result || account.token !== targetTokens.get(account.id) || Date.parse(account.quotaCheckedAt || '') > Date.parse(result.quotaCheckedAt || '')) return;
       applyAccountQuotaResult(account, result, now);
     });
     if (fairShareMode) syncFairQuota(db);
     return db.accounts.filter((account) => resultMap.has(account.id));
-  }, { collections: ['accounts'] });
+  }, { collections: ['accounts', 'settings'], includeSettings: true });
 
   return {
     checked: results.length,
@@ -1594,6 +1616,7 @@ function accountQuotaResult(id, quota, now) {
     v5UsageTimeUntilNextPercent: quota.v5UsageTimeUntilNextPercent,
     quotaCheckedAt: now,
     quotaError: '',
+    upstreamStatus: Number(quota.tier) === 3 && quota.subscriptionActive === true ? 'active' : 'expired',
     trialRemainingImages: quota.trialRemainingImages ?? null,
     trialUsedImages: quota.trialUsedImages ?? null,
     trialEligible: quota.trialEligible === true,
@@ -1619,6 +1642,7 @@ function accountQuotaErrorResult(id, error, now) {
     v5UsageTimeUntilNextPercent: null,
     quotaCheckedAt: now,
     quotaError: publicErrorMessage(message),
+    upstreamStatus: error.upstreamStatus === 401 ? 'invalid_key' : error.upstreamStatus === 403 ? 'access_denied' : 'sync_error',
     disableAccount: banned || outOfTrial,
     disableReason: banned ? '账号已封禁' : outOfTrial ? '试用次数已用完' : ''
   };
@@ -1640,6 +1664,7 @@ function applyAccountQuotaResult(account, result, now) {
   account.v5UsageTimeUntilNextPercent = result.v5UsageTimeUntilNextPercent;
   account.quotaCheckedAt = result.quotaCheckedAt;
   account.quotaError = result.quotaError;
+  account.upstreamStatus = result.upstreamStatus;
   if (result.ok && !fairShareMode) account.cooldownUntil = '';
   if (result.disableAccount) disableNovelAiAccount(account);
   account.updatedAt = now;
@@ -2535,6 +2560,9 @@ async function runReservedJob(reservation) {
   const useStreamProgress = shouldUseJobStreamProgress(reservation.job);
   if (useStreamProgress) resetJobStreamProgress(reservation.job?.id, reservation.job?.request);
   try {
+    // 已取消的任务不再启动新的上游请求。
+    const current = await store.findJobContext(reservation.job.id);
+    if (current?.job?.status !== 'running' || control.controller.signal.aborted) throw new Error('任务已取消');
     const image = await generateWithAccountRetry(reservation, reservation.job.request, {
       signal: control.controller.signal,
       deadline: jobDeadlineTimestamp(reservation.job),
@@ -2749,6 +2777,7 @@ async function requeueReservedJob(reservation, error) {
 }
 
 async function reserveCreditAndAccount(token, request, cacheKey) {
+  if (fairShareMode) throw httpError(409, '共享生图必须通过统一排队账本');
   return store.update((db) => {
     const user = getUserOrThrow(db, token);
     const cost = generationCost(request);
@@ -2789,6 +2818,7 @@ async function reserveCreditAndAccountWhenAvailable(token, request, cacheKey, de
 }
 
 async function tryReserveCreditAndAccount(token, request, cacheKey) {
+  if (fairShareMode) throw httpError(409, '共享生图必须通过统一排队账本');
   return store.update((db) => {
     const user = getUserOrThrow(db, token);
     const cost = generationCost(request);
@@ -2932,7 +2962,7 @@ async function cancelReservedJob(reservation, error) {
 
 async function failGeneration(reservation, error) {
   const detail = errorDetailMessage(error);
-  const message = publicErrorMessage(error?.message || detail);
+  const message = fairShareMode && error?.upstreamStatus === 401 ? '共享 Opus Key 已失效，请联系管理员更新凭据' : fairShareMode && error?.upstreamStatus === 403 ? '上游拒绝访问，请联系管理员重新验证 Opus' : publicErrorMessage(error?.message || detail);
   await store.update((db) => {
     if (fairShareMode && reservation.job?.id) {
       const currentJob = db.jobs.find(j => j.id === reservation.job.id);
@@ -2947,6 +2977,10 @@ async function failGeneration(reservation, error) {
     if (account) {
       account.inFlight = Math.max(0, Number(account.inFlight || 0) - 1);
       if (fairShareMode && isNovelAiCapacityError(error)) account.cooldownUntil = new Date(Date.now() + 30_000).toISOString();
+      if (fairShareMode && [401, 403].includes(error.upstreamStatus) && account.token === reservation.account?.token) {
+        account.upstreamStatus = error.upstreamStatus === 401 ? 'invalid_key' : 'access_denied';
+        account.quotaError = message;
+      }
       account.failures = Number(account.failures || 0) + 1;
       account.updatedAt = new Date().toISOString();
     }
@@ -3467,6 +3501,7 @@ function imageFilePath(file) {
 }
 
 function imageExtension(mimeType = '') {
+  if (mimeType === 'application/octet-stream') return 'bin';
   if (mimeType.includes('jpeg') || mimeType.includes('jpg')) return 'jpg';
   if (mimeType.includes('webp')) return 'webp';
   if (mimeType.includes('svg')) return 'svg';
@@ -3884,6 +3919,7 @@ function normalizeSizeName(value) {
 
 function requestCacheKey(_token, request, explicitSeed = '') {
   return hashObject({
+    owner: _token,
     request: cacheableRequest({
       ...request,
       seed: explicitSeed === undefined || explicitSeed === '' ? '' : Number(explicitSeed)
@@ -4097,11 +4133,14 @@ async function serveStatic(urlPath, res, options = {}) {
   }
 }
 
-async function readJson(req) {
+async function readJson(req, maxBytes = 2 * 1024 * 1024) {
   // 公网守卫读取过的正文直接复用，避免重复消费请求流。
   if (req.publicParsedBody !== undefined) return req.publicParsedBody;
-  const chunks = [];
+  const chunks = []; let bytes = 0;
+  if (Number(req.headers?.['content-length']) > maxBytes) throw httpError(413, '请求体超过大小限制');
   for await (const chunk of req) {
+    bytes += chunk.length;
+    if (bytes > maxBytes) throw httpError(413, '请求体超过大小限制');
     chunks.push(chunk);
   }
   if (!chunks.length) return {};
@@ -4236,8 +4275,9 @@ function sendHead(res, statusCode, headers = {}) {
 function corsHeaders() {
   return {
     'access-control-allow-origin': '*',
+    'access-control-expose-headers': 'Retry-After, X-Nai-Diagnostic-Id, X-Nai-Request-Id, X-Nai-Image-Count, X-Nai-Partial',
     'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
-    'access-control-allow-headers': 'content-type,authorization,x-admin-token,x-user-token,x-requested-with,x-request-id,user-agent,accept'
+    'access-control-allow-headers': 'content-type,authorization,x-admin-token,x-user-token,x-requested-with,x-request-id,x-correlation-id,x-initiated-at,user-agent,accept'
   };
 }
 

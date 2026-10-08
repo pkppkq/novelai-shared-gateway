@@ -37,6 +37,11 @@ function recentActivity(db,user) {
   return {total:jobs.length,done:jobs.filter(job=>job.status==='done').length,failed:jobs.filter(job=>job.status==='failed').length,queued:jobs.filter(job=>job.status==='queued').length,running:jobs.filter(job=>job.status==='running').length};
 }
 
+// 部署配置优先于历史库内地址，成员与管理员复制到的入口保持一致。
+export function memberPublicBaseUrl(db, env = process.env) {
+  return env.PUBLIC_BASE_URL || db.settings.publicBaseUrl || (env.PUBLIC_HOST ? `https://${env.PUBLIC_HOST}` : '');
+}
+
 export async function handleMemberRoutes(req, res, url, deps) {
   const member = url.pathname.startsWith('/api/member/');
   const admin = url.pathname === '/api/admin/member-management';
@@ -53,7 +58,7 @@ export async function handleMemberRoutes(req, res, url, deps) {
         return { groups: db.settings.fairQuota?.groups || [], status: db.settings.fairQuota?.status,
           shared: sharedAccountStatus(db),autoAnlasFallback: db.settings.fairQuota?.autoAnlasFallback === true,
           configVersion: db.settings.fairQuota?.configVersion ?? 1,
-          publicBaseUrl: db.settings.publicBaseUrl || process.env.PUBLIC_BASE_URL || (process.env.PUBLIC_HOST ? `https://${process.env.PUBLIC_HOST}` : ''),
+          publicBaseUrl: memberPublicBaseUrl(db),
           users: db.users.map(u => ({ id: u.id, username: u.memberAuth?.username || '', note: u.note || '', enabled: u.enabled !== false,
             quota: fairQuotaSummary(db, u), recentActivity: recentActivity(db, u) })) };
       }, { collections: ['settings'] });
@@ -191,8 +196,9 @@ export async function handleMemberRoutes(req, res, url, deps) {
     return true;
   }
   if (url.pathname === '/api/member/key') {
-    const local = /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(String(req.headers.host || ''));
-    reply(res, 200, { apiKey: user.token, baseUrl: `${local ? 'http' : 'https'}://${req.headers.host}/v1` }); return true;
+    const publicBase = await store.update(db => memberPublicBaseUrl(db), { persist: false });
+    const base = publicBase.replace(/\/+$/, '');
+    reply(res, 200, { apiKey: user.token, baseUrl: base ? (base.endsWith('/v1') ? base : `${base}/v1`) : '' }); return true;
   }
   if (url.pathname === '/api/member/me') {
     const payload = await store.update(db => ({ username: user.memberAuth.username, quota: fairQuotaSummary(db, user),
