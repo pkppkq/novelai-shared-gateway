@@ -27,7 +27,7 @@ function run(fn) { return async event => { event?.preventDefault(); $('message')
 $('loginForm').onsubmit=run(async()=>{ await api('login',{username:$('username').value,password:$('password').value});$('password').value='';await load(); });
 $('refresh').onclick=run(load);
 $('logout').onclick=run(async()=>{await api('logout',{});stopSharedStatus();$('apiKey').value='';$('keyPanel').hidden=true;$('login').hidden=false;$('account').hidden=true;});
-$('showKey').onclick=run(async()=>{const data=await api('key');$('apiKey').value=data.apiKey;$('keyPanel').hidden=false;});
+$('showKey').onclick=run(async()=>{const data=await api('key');$('apiBaseUrl').value=data.baseUrl || '';$('apiKey').value=data.apiKey;$('keyPanel').hidden=false;});
 $('hideKey').onclick=()=>{$('keyPanel').hidden=true;$('apiKey').value='';};
 $('copyKey').onclick=run(async()=>{await navigator.clipboard.writeText($('apiKey').value);$('message').textContent='已复制自己的 API Key';});
 load().catch(()=>{});
