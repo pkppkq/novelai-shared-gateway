@@ -1,0 +1,2906 @@
+{
+  "schemaVersion": 1,
+  "reviewedOn": "2026-10-07",
+  "sources": [
+    "https://docs.novelai.net/en/image/anlas/",
+    "https://novelai.net/"
+  ],
+  "sourceModuleSha256": "aa4b81b0658bd7d62c1c6ab1262ab7ff5936be2387c18e499c6a63188e07fac6",
+  "note": "固定结果来自当日官网报价模块；所有参数均为合成测试数据，不含官网脚本或账户资料。",
+  "calls": {
+    "GI": [
+      {
+        "args": [
+          {
+            "width": 1024,
+            "height": 1024,
+            "steps": 29,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-3"
+        ],
+        "expected": 21
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.01,
+            "noise": 0,
+            "width": 1024,
+            "height": 1024,
+            "steps": 29,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-3"
+        ],
+        "expected": 2
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.3,
+            "noise": 0,
+            "width": 1024,
+            "height": 1024,
+            "steps": 29,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-3"
+        ],
+        "expected": 7
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.7,
+            "noise": 0,
+            "width": 1024,
+            "height": 1024,
+            "steps": 29,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-3"
+        ],
+        "expected": 15
+      },
+      {
+        "args": [
+          {
+            "width": 1024,
+            "height": 1536,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-3"
+        ],
+        "expected": 26
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.01,
+            "noise": 0,
+            "width": 1024,
+            "height": 1536,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-3"
+        ],
+        "expected": 2
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.3,
+            "noise": 0,
+            "width": 1024,
+            "height": 1536,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-3"
+        ],
+        "expected": 8
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.7,
+            "noise": 0,
+            "width": 1024,
+            "height": 1536,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-3"
+        ],
+        "expected": 19
+      },
+      {
+        "args": [
+          {
+            "width": 1536,
+            "height": 1536,
+            "steps": 37,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-3"
+        ],
+        "expected": 58
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.01,
+            "noise": 0,
+            "width": 1536,
+            "height": 1536,
+            "steps": 37,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-3"
+        ],
+        "expected": 2
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.3,
+            "noise": 0,
+            "width": 1536,
+            "height": 1536,
+            "steps": 37,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-3"
+        ],
+        "expected": 18
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.7,
+            "noise": 0,
+            "width": 1536,
+            "height": 1536,
+            "steps": 37,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-3"
+        ],
+        "expected": 41
+      },
+      {
+        "args": [
+          {
+            "width": 1024,
+            "height": 1024,
+            "steps": 29,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-furry-3"
+        ],
+        "expected": 21
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.01,
+            "noise": 0,
+            "width": 1024,
+            "height": 1024,
+            "steps": 29,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-furry-3"
+        ],
+        "expected": 2
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.3,
+            "noise": 0,
+            "width": 1024,
+            "height": 1024,
+            "steps": 29,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-furry-3"
+        ],
+        "expected": 7
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.7,
+            "noise": 0,
+            "width": 1024,
+            "height": 1024,
+            "steps": 29,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-furry-3"
+        ],
+        "expected": 15
+      },
+      {
+        "args": [
+          {
+            "width": 1024,
+            "height": 1536,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-furry-3"
+        ],
+        "expected": 26
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.01,
+            "noise": 0,
+            "width": 1024,
+            "height": 1536,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-furry-3"
+        ],
+        "expected": 2
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.3,
+            "noise": 0,
+            "width": 1024,
+            "height": 1536,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-furry-3"
+        ],
+        "expected": 8
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.7,
+            "noise": 0,
+            "width": 1024,
+            "height": 1536,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-furry-3"
+        ],
+        "expected": 19
+      },
+      {
+        "args": [
+          {
+            "width": 1536,
+            "height": 1536,
+            "steps": 37,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-furry-3"
+        ],
+        "expected": 58
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.01,
+            "noise": 0,
+            "width": 1536,
+            "height": 1536,
+            "steps": 37,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-furry-3"
+        ],
+        "expected": 2
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.3,
+            "noise": 0,
+            "width": 1536,
+            "height": 1536,
+            "steps": 37,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-furry-3"
+        ],
+        "expected": 18
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.7,
+            "noise": 0,
+            "width": 1536,
+            "height": 1536,
+            "steps": 37,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-furry-3"
+        ],
+        "expected": 41
+      },
+      {
+        "args": [
+          {
+            "width": 1024,
+            "height": 1024,
+            "steps": 29,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-full"
+        ],
+        "expected": 21
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.01,
+            "noise": 0,
+            "width": 1024,
+            "height": 1024,
+            "steps": 29,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-full"
+        ],
+        "expected": 2
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.3,
+            "noise": 0,
+            "width": 1024,
+            "height": 1024,
+            "steps": 29,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-full"
+        ],
+        "expected": 7
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.7,
+            "noise": 0,
+            "width": 1024,
+            "height": 1024,
+            "steps": 29,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-full"
+        ],
+        "expected": 15
+      },
+      {
+        "args": [
+          {
+            "width": 1024,
+            "height": 1536,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-full"
+        ],
+        "expected": 26
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.01,
+            "noise": 0,
+            "width": 1024,
+            "height": 1536,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-full"
+        ],
+        "expected": 2
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.3,
+            "noise": 0,
+            "width": 1024,
+            "height": 1536,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-full"
+        ],
+        "expected": 8
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.7,
+            "noise": 0,
+            "width": 1024,
+            "height": 1536,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-full"
+        ],
+        "expected": 19
+      },
+      {
+        "args": [
+          {
+            "width": 1536,
+            "height": 1536,
+            "steps": 37,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-full"
+        ],
+        "expected": 58
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.01,
+            "noise": 0,
+            "width": 1536,
+            "height": 1536,
+            "steps": 37,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-full"
+        ],
+        "expected": 2
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.3,
+            "noise": 0,
+            "width": 1536,
+            "height": 1536,
+            "steps": 37,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-full"
+        ],
+        "expected": 18
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.7,
+            "noise": 0,
+            "width": 1536,
+            "height": 1536,
+            "steps": 37,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-full"
+        ],
+        "expected": 41
+      },
+      {
+        "args": [
+          {
+            "width": 1024,
+            "height": 1024,
+            "steps": 29,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-curated-preview"
+        ],
+        "expected": 21
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.01,
+            "noise": 0,
+            "width": 1024,
+            "height": 1024,
+            "steps": 29,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-curated-preview"
+        ],
+        "expected": 2
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.3,
+            "noise": 0,
+            "width": 1024,
+            "height": 1024,
+            "steps": 29,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-curated-preview"
+        ],
+        "expected": 7
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.7,
+            "noise": 0,
+            "width": 1024,
+            "height": 1024,
+            "steps": 29,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-curated-preview"
+        ],
+        "expected": 15
+      },
+      {
+        "args": [
+          {
+            "width": 1024,
+            "height": 1536,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-curated-preview"
+        ],
+        "expected": 26
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.01,
+            "noise": 0,
+            "width": 1024,
+            "height": 1536,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-curated-preview"
+        ],
+        "expected": 2
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.3,
+            "noise": 0,
+            "width": 1024,
+            "height": 1536,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-curated-preview"
+        ],
+        "expected": 8
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.7,
+            "noise": 0,
+            "width": 1024,
+            "height": 1536,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-curated-preview"
+        ],
+        "expected": 19
+      },
+      {
+        "args": [
+          {
+            "width": 1536,
+            "height": 1536,
+            "steps": 37,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-curated-preview"
+        ],
+        "expected": 58
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.01,
+            "noise": 0,
+            "width": 1536,
+            "height": 1536,
+            "steps": 37,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-curated-preview"
+        ],
+        "expected": 2
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.3,
+            "noise": 0,
+            "width": 1536,
+            "height": 1536,
+            "steps": 37,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-curated-preview"
+        ],
+        "expected": 18
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.7,
+            "noise": 0,
+            "width": 1536,
+            "height": 1536,
+            "steps": 37,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-curated-preview"
+        ],
+        "expected": 41
+      },
+      {
+        "args": [
+          {
+            "width": 1024,
+            "height": 1024,
+            "steps": 29,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-full"
+        ],
+        "expected": 21
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.01,
+            "noise": 0,
+            "width": 1024,
+            "height": 1024,
+            "steps": 29,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-full"
+        ],
+        "expected": 2
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.3,
+            "noise": 0,
+            "width": 1024,
+            "height": 1024,
+            "steps": 29,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-full"
+        ],
+        "expected": 7
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.7,
+            "noise": 0,
+            "width": 1024,
+            "height": 1024,
+            "steps": 29,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-full"
+        ],
+        "expected": 15
+      },
+      {
+        "args": [
+          {
+            "width": 1024,
+            "height": 1536,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-full"
+        ],
+        "expected": 26
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.01,
+            "noise": 0,
+            "width": 1024,
+            "height": 1536,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-full"
+        ],
+        "expected": 2
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.3,
+            "noise": 0,
+            "width": 1024,
+            "height": 1536,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-full"
+        ],
+        "expected": 8
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.7,
+            "noise": 0,
+            "width": 1024,
+            "height": 1536,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-full"
+        ],
+        "expected": 19
+      },
+      {
+        "args": [
+          {
+            "width": 1536,
+            "height": 1536,
+            "steps": 37,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-full"
+        ],
+        "expected": 58
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.01,
+            "noise": 0,
+            "width": 1536,
+            "height": 1536,
+            "steps": 37,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-full"
+        ],
+        "expected": 2
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.3,
+            "noise": 0,
+            "width": 1536,
+            "height": 1536,
+            "steps": 37,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-full"
+        ],
+        "expected": 18
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.7,
+            "noise": 0,
+            "width": 1536,
+            "height": 1536,
+            "steps": 37,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-full"
+        ],
+        "expected": 41
+      },
+      {
+        "args": [
+          {
+            "width": 1024,
+            "height": 1024,
+            "steps": 29,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-curated"
+        ],
+        "expected": 21
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.01,
+            "noise": 0,
+            "width": 1024,
+            "height": 1024,
+            "steps": 29,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-curated"
+        ],
+        "expected": 2
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.3,
+            "noise": 0,
+            "width": 1024,
+            "height": 1024,
+            "steps": 29,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-curated"
+        ],
+        "expected": 7
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.7,
+            "noise": 0,
+            "width": 1024,
+            "height": 1024,
+            "steps": 29,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-curated"
+        ],
+        "expected": 15
+      },
+      {
+        "args": [
+          {
+            "width": 1024,
+            "height": 1536,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-curated"
+        ],
+        "expected": 26
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.01,
+            "noise": 0,
+            "width": 1024,
+            "height": 1536,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-curated"
+        ],
+        "expected": 2
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.3,
+            "noise": 0,
+            "width": 1024,
+            "height": 1536,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-curated"
+        ],
+        "expected": 8
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.7,
+            "noise": 0,
+            "width": 1024,
+            "height": 1536,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-curated"
+        ],
+        "expected": 19
+      },
+      {
+        "args": [
+          {
+            "width": 1536,
+            "height": 1536,
+            "steps": 37,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-curated"
+        ],
+        "expected": 58
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.01,
+            "noise": 0,
+            "width": 1536,
+            "height": 1536,
+            "steps": 37,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-curated"
+        ],
+        "expected": 2
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.3,
+            "noise": 0,
+            "width": 1536,
+            "height": 1536,
+            "steps": 37,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-curated"
+        ],
+        "expected": 18
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.7,
+            "noise": 0,
+            "width": 1536,
+            "height": 1536,
+            "steps": 37,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-curated"
+        ],
+        "expected": 41
+      },
+      {
+        "args": [
+          {
+            "width": 1024,
+            "height": 1024,
+            "steps": 29,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-5-full"
+        ],
+        "expected": 32
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.01,
+            "noise": 0,
+            "width": 1024,
+            "height": 1024,
+            "steps": 29,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-5-full"
+        ],
+        "expected": 2
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.3,
+            "noise": 0,
+            "width": 1024,
+            "height": 1024,
+            "steps": 29,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-5-full"
+        ],
+        "expected": 10
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.7,
+            "noise": 0,
+            "width": 1024,
+            "height": 1024,
+            "steps": 29,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-5-full"
+        ],
+        "expected": 23
+      },
+      {
+        "args": [
+          {
+            "width": 1024,
+            "height": 1536,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-5-full"
+        ],
+        "expected": 39
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.01,
+            "noise": 0,
+            "width": 1024,
+            "height": 1536,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-5-full"
+        ],
+        "expected": 2
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.3,
+            "noise": 0,
+            "width": 1024,
+            "height": 1536,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-5-full"
+        ],
+        "expected": 12
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.7,
+            "noise": 0,
+            "width": 1024,
+            "height": 1536,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-5-full"
+        ],
+        "expected": 28
+      },
+      {
+        "args": [
+          {
+            "width": 1536,
+            "height": 1536,
+            "steps": 37,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-5-full"
+        ],
+        "expected": 87
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.01,
+            "noise": 0,
+            "width": 1536,
+            "height": 1536,
+            "steps": 37,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-5-full"
+        ],
+        "expected": 2
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.3,
+            "noise": 0,
+            "width": 1536,
+            "height": 1536,
+            "steps": 37,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-5-full"
+        ],
+        "expected": 27
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.7,
+            "noise": 0,
+            "width": 1536,
+            "height": 1536,
+            "steps": 37,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-5-full"
+        ],
+        "expected": 61
+      },
+      {
+        "args": [
+          {
+            "sm": true,
+            "sm_dyn": false,
+            "width": 1024,
+            "height": 1024,
+            "steps": 29,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-3"
+        ],
+        "expected": 26
+      },
+      {
+        "args": [
+          {
+            "sm": true,
+            "sm_dyn": false,
+            "width": 1024,
+            "height": 1024,
+            "steps": 37,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-3"
+        ],
+        "expected": 32
+      },
+      {
+        "args": [
+          {
+            "sm": true,
+            "sm_dyn": true,
+            "width": 1024,
+            "height": 1024,
+            "steps": 29,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-3"
+        ],
+        "expected": 30
+      },
+      {
+        "args": [
+          {
+            "sm": true,
+            "sm_dyn": true,
+            "width": 1024,
+            "height": 1024,
+            "steps": 37,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-3"
+        ],
+        "expected": 37
+      },
+      {
+        "args": [
+          {
+            "width": 1024,
+            "height": 1024,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-full"
+        ],
+        "expected": 0
+      },
+      {
+        "args": [
+          {
+            "width": 1024,
+            "height": 1024,
+            "steps": 28,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-full"
+        ],
+        "expected": 0
+      },
+      {
+        "args": [
+          {
+            "width": 512,
+            "height": 512,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-full"
+        ],
+        "expected": 0
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "strength": 0.7,
+            "width": 1024,
+            "height": 1024,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-full"
+        ],
+        "expected": 0
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "mask": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "width": 1024,
+            "height": 1024,
+            "steps": 23,
+            "n_samples": 1,
+            "inpaintImg2ImgStrength": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-full-inpainting"
+        ],
+        "expected": 0
+      },
+      {
+        "args": [
+          {
+            "width": 1088,
+            "height": 1024,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-full"
+        ],
+        "expected": 19
+      },
+      {
+        "args": [
+          {
+            "width": 512,
+            "height": 512,
+            "steps": 1,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-5-full",
+          true
+        ],
+        "expected": 2
+      },
+      {
+        "args": [
+          {
+            "width": 832,
+            "height": 1216,
+            "steps": 1,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-5-full",
+          true
+        ],
+        "expected": 6
+      },
+      {
+        "args": [
+          {
+            "width": 1024,
+            "height": 1024,
+            "steps": 1,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-5-full",
+          true
+        ],
+        "expected": 6
+      },
+      {
+        "args": [
+          {
+            "width": 512,
+            "height": 512,
+            "steps": 17,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-5-full",
+          true
+        ],
+        "expected": 6
+      },
+      {
+        "args": [
+          {
+            "width": 832,
+            "height": 1216,
+            "steps": 17,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-5-full",
+          true
+        ],
+        "expected": 20
+      },
+      {
+        "args": [
+          {
+            "width": 1024,
+            "height": 1024,
+            "steps": 17,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-5-full",
+          true
+        ],
+        "expected": 21
+      },
+      {
+        "args": [
+          {
+            "width": 512,
+            "height": 512,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-5-full",
+          true
+        ],
+        "expected": 8
+      },
+      {
+        "args": [
+          {
+            "width": 832,
+            "height": 1216,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-5-full",
+          true
+        ],
+        "expected": 26
+      },
+      {
+        "args": [
+          {
+            "width": 1024,
+            "height": 1024,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-5-full",
+          true
+        ],
+        "expected": 26
+      },
+      {
+        "args": [
+          {
+            "width": 512,
+            "height": 512,
+            "steps": 28,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-5-full",
+          true
+        ],
+        "expected": 8
+      },
+      {
+        "args": [
+          {
+            "width": 832,
+            "height": 1216,
+            "steps": 28,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-5-full",
+          true
+        ],
+        "expected": 30
+      },
+      {
+        "args": [
+          {
+            "width": 1024,
+            "height": 1024,
+            "steps": 28,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-5-full",
+          true
+        ],
+        "expected": 30
+      },
+      {
+        "args": [
+          {
+            "director_reference_images": [
+              "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA=="
+            ],
+            "width": 1024,
+            "height": 1024,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-full"
+        ],
+        "expected": 0
+      },
+      {
+        "args": [
+          {
+            "director_reference_images": [
+              "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+              "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA=="
+            ],
+            "width": 1024,
+            "height": 1024,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-full"
+        ],
+        "expected": 0
+      },
+      {
+        "args": [
+          {
+            "director_reference_images": [
+              "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+              "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+              "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+              "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+              "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+              "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+              "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+              "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+              "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+              "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+              "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+              "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+              "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+              "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+              "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+              "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA=="
+            ],
+            "width": 1024,
+            "height": 1024,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-full"
+        ],
+        "expected": 0
+      },
+      {
+        "args": [
+          {
+            "director_reference_images": [
+              "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA=="
+            ],
+            "width": 1024,
+            "height": 1024,
+            "steps": 29,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-full"
+        ],
+        "expected": 21
+      },
+      {
+        "args": [
+          {
+            "director_reference_images": [
+              "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA=="
+            ],
+            "width": 1536,
+            "height": 1024,
+            "steps": 23,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-full"
+        ],
+        "expected": 26
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "mask": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "img2img": {
+              "strength": 0,
+              "color_correct": true
+            },
+            "width": 1536,
+            "height": 1024,
+            "steps": 23,
+            "n_samples": 1,
+            "inpaintImg2ImgStrength": 0
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-full-inpainting"
+        ],
+        "expected": 2
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "mask": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "img2img": {
+              "strength": 0.25,
+              "color_correct": true
+            },
+            "width": 1536,
+            "height": 1024,
+            "steps": 23,
+            "n_samples": 1,
+            "inpaintImg2ImgStrength": 0.25
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-full-inpainting"
+        ],
+        "expected": 7
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "mask": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "img2img": {
+              "strength": 0.7,
+              "color_correct": true
+            },
+            "width": 1536,
+            "height": 1024,
+            "steps": 23,
+            "n_samples": 1,
+            "inpaintImg2ImgStrength": 0.7
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-full-inpainting"
+        ],
+        "expected": 19
+      },
+      {
+        "args": [
+          {
+            "image": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "mask": "eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==eA==",
+            "img2img": {
+              "strength": 1,
+              "color_correct": true
+            },
+            "width": 1536,
+            "height": 1024,
+            "steps": 23,
+            "n_samples": 1,
+            "inpaintImg2ImgStrength": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-full-inpainting"
+        ],
+        "expected": 26
+      },
+      {
+        "args": [
+          {
+            "width": 1536,
+            "height": 2048,
+            "steps": 50,
+            "n_samples": 1
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-5-full"
+        ],
+        "expected": -3
+      },
+      {
+        "args": [
+          {
+            "width": 1024,
+            "height": 1024,
+            "steps": 23,
+            "n_samples": 2
+          },
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          },
+          "nai-diffusion-4-5-full"
+        ],
+        "expected": 17
+      }
+    ],
+    "H_": [
+      {
+        "args": [
+          1
+        ],
+        "expected": 0
+      },
+      {
+        "args": [
+          4
+        ],
+        "expected": 0
+      },
+      {
+        "args": [
+          5
+        ],
+        "expected": 2
+      },
+      {
+        "args": [
+          8
+        ],
+        "expected": 8
+      },
+      {
+        "args": [
+          16
+        ],
+        "expected": 24
+      }
+    ],
+    "tY": [
+      {
+        "args": [
+          1,
+          1,
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          }
+        ],
+        "expected": 1
+      },
+      {
+        "args": [
+          1024,
+          1024,
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          }
+        ],
+        "expected": 1
+      },
+      {
+        "args": [
+          1048577,
+          1,
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          }
+        ],
+        "expected": 2
+      },
+      {
+        "args": [
+          1747627,
+          1,
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          }
+        ],
+        "expected": 2
+      },
+      {
+        "args": [
+          1747628,
+          1,
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          }
+        ],
+        "expected": 3
+      },
+      {
+        "args": [
+          2446678,
+          1,
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          }
+        ],
+        "expected": 3
+      },
+      {
+        "args": [
+          2446679,
+          1,
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          }
+        ],
+        "expected": 4
+      },
+      {
+        "args": [
+          1536,
+          2048,
+          {
+            "subscription": {
+              "tier": 3,
+              "active": true,
+              "usage": {
+                "isNegative": false
+              }
+            }
+          }
+        ],
+        "expected": 4
+      }
+    ]
+  }
+}

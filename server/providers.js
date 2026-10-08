@@ -45,6 +45,16 @@ function normalizeSizeName(value) {
 }
 
 export async function generateNovelAiImage(request, account, env, options = {}) {
+  const operation = request.operation || 'generate';
+  if (!['generate', 'encode-vibe', 'upscale'].includes(operation)) {
+    throw new Error('Unsupported NovelAI operation.');
+  }
+  if (operation !== 'generate') {
+    return generateNovelAiImageOperation(request, account, env, options);
+  }
+  if (!['generate', 'img2img', 'infill'].includes(request.action || 'generate')) {
+    throw new Error('Unsupported NovelAI image action.');
+  }
   if (!account?.token) {
     if (env.MOCK_WHEN_NO_ACCOUNT === 'false') {
       throw new Error('No enabled NovelAI account is available.');
@@ -72,7 +82,7 @@ export async function generateNovelAiImage(request, account, env, options = {}) 
       'user-agent': 'Mozilla/5.0 Nai2API/1.0'
     },
     body: JSON.stringify({
-      action: 'generate',
+      action: request.action || 'generate',
       input: request.prompt,
       model: request.model,
       parameters: buildNovelAiParameters(request),
@@ -85,7 +95,7 @@ export async function generateNovelAiImage(request, account, env, options = {}) 
 
   if (!response.ok) {
     const text = buffer.toString('utf8').slice(0, 1000);
-    throw new Error(`NovelAI returned ${response.status} (cid=${correlationId}): ${text}`);
+    throw Object.assign(new Error(`NovelAI returned ${response.status} (cid=${correlationId}): ${text}`), { upstreamStatus: response.status });
   }
 
   if (contentType.includes('application/json')) {
@@ -103,6 +113,56 @@ export async function generateNovelAiImage(request, account, env, options = {}) 
     mimeType: contentType.includes('jpeg') ? 'image/jpeg' : 'image/png',
     buffer
   };
+}
+
+async function generateNovelAiImageOperation(request, account, env, options = {}) {
+  if (!account?.token) throw new Error('No enabled NovelAI account is available.');
+  const payload = request.operationParameters;
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error('Validated NovelAI operation parameters are required.');
+  }
+  // 仅使用管理员配置的上游地址；请求里的图片和缓存字段永远不作为下载地址。
+  const baseUrl = (env.NOVELAI_API_URL || 'https://image.novelai.net').replace(/\/$/, '');
+  const correlationId = novelAiCorrelationId();
+  const response = await novelAiFetch(`${baseUrl}/ai/${request.operation}`, {
+    method: 'POST',
+    signal: options.signal,
+    headers: {
+      authorization: `Bearer ${account.token}`,
+      'content-type': 'application/json',
+      accept: request.operation === 'encode-vibe' ? 'application/octet-stream' : 'application/x-zip-compressed,image/png,application/json',
+      origin: 'https://novelai.net',
+      referer: 'https://novelai.net/',
+      'x-correlation-id': correlationId,
+      'x-initiated-at': new Date().toISOString(),
+      'user-agent': 'Mozilla/5.0 Nai2API/1.0'
+    },
+    // 官网仍支持 JSON 传输；入口把旧 JSON 和新版 multipart 统一为已核价参数。
+    body: JSON.stringify(payload)
+  }, accountProxyUrl(account));
+  const contentType = response.headers.get('content-type') || '';
+  const buffer = Buffer.from(await response.arrayBuffer());
+  if (!response.ok) {
+    const text = buffer.toString('utf8').slice(0, 1000);
+    throw Object.assign(new Error(`NovelAI returned ${response.status} (cid=${correlationId}): ${text}`), { upstreamStatus: response.status });
+  }
+  if (!buffer.length) throw new Error('NovelAI returned an empty operation result.');
+  if (request.operation === 'encode-vibe') {
+    // Vibe 编码是二进制内容，不能当作图片解码，也不能把 JSON 错误当作编码发给客户端。
+    if (contentType.includes('json') || contentType.includes('text/')) {
+      throw new Error('NovelAI encode-vibe response does not contain binary encoding data.');
+    }
+    return { buffer, mimeType: 'application/octet-stream' };
+  }
+  if (contentType.includes('application/json')) {
+    const payload = JSON.parse(buffer.toString('utf8'));
+    const base64 = payload.image || payload.data || payload.images?.[0]?.image || payload.images?.[0];
+    if (!base64) throw new Error('NovelAI JSON response does not contain image data.');
+    return decodeDataUrl(base64);
+  }
+  if (contentType.includes('zip') || looksLikeZip(buffer)) return extractFirstImageFromZip(buffer);
+  if (contentType.includes('text/')) throw new Error('NovelAI upscale response does not contain image data.');
+  return { buffer, mimeType: imageMimeType(buffer) };
 }
 
 async function generateNovelAiImageStream(request, account, env, options = {}) {
@@ -125,7 +185,7 @@ async function generateNovelAiImageStream(request, account, env, options = {}) {
       'user-agent': 'Mozilla/5.0 Nai2API/1.0'
     },
     body: JSON.stringify({
-      action: 'generate',
+      action: request.action || 'generate',
       input: request.prompt,
       model: request.model,
       parameters,
@@ -138,7 +198,7 @@ async function generateNovelAiImageStream(request, account, env, options = {}) {
     const buffer = Buffer.from(await response.arrayBuffer());
     if (!response.ok) {
       const text = buffer.toString('utf8').slice(0, 1000);
-      throw new Error(`NovelAI returned ${response.status} (cid=${correlationId}): ${text}`);
+      throw Object.assign(new Error(`NovelAI returned ${response.status} (cid=${correlationId}): ${text}`), { upstreamStatus: response.status });
     }
     const payload = JSON.parse(buffer.toString('utf8'));
     const base64 = payload.image || payload.data || payload.images?.[0]?.image || payload.images?.[0];
@@ -177,7 +237,7 @@ export async function fetchNovelAiAccountQuota(token, env = {}, options = {}) {
 
   const text = await response.text();
   if (!response.ok) {
-    throw new Error(`NovelAI account returned ${response.status}: ${text.slice(0, 500)}`);
+    throw Object.assign(new Error(`NovelAI account returned ${response.status}: ${text.slice(0, 500)}`), { upstreamStatus: response.status });
   }
 
   const payload = text ? JSON.parse(text) : {};
@@ -1031,7 +1091,9 @@ function normalizeNovelAiStreamProgress(event, state, isFinal) {
 }
 
 function finalNovelAiStreamImage(state) {
-  const image = state.finalImage || state.lastImage;
+  // 中途预览不是最终结果；遇到报错或缺少 final 必须让任务失败并退款。
+  if (state.errors.length) throw new Error(`NovelAI stream error: ${state.errors.at(-1)}`);
+  const image = state.finalImage;
   if (image) {
     return {
       mimeType: imageMimeType(image),
@@ -1039,7 +1101,6 @@ function finalNovelAiStreamImage(state) {
     };
   }
 
-  if (state.errors.length) throw new Error(`NovelAI stream error: ${state.errors.at(-1)}`);
   throw new Error('NovelAI stream ended without a final image.');
 }
 

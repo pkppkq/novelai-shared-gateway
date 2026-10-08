@@ -16,3 +16,16 @@ test('兑换、旧余额、提示词转换、图库管理及整库导入导出�
     for (const method of ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']) assert.equal(sharedSurface(path, method).allowed, false, path);
   }
 });
+
+test('启动器查询别名、编码和放大只开放对应方法', () => {
+  for (const path of ['/ai/user/subscription', '/v1/ai/user/subscription']) {
+    assert.equal(sharedSurface(path, 'GET').allowed, true);
+    assert.equal(sharedSurface(path, 'POST').allowed, false);
+  }
+  for (const path of ['/ai/encode-vibe', '/v1/ai/encode-vibe', '/ai/upscale', '/v1/ai/upscale']) {
+    assert.equal(sharedSurface(path, 'POST').allowed, true);
+    assert.equal(sharedSurface(path, 'OPTIONS').allowed, true);
+    assert.equal(sharedSurface(path, 'GET').allowed, false);
+    assert.equal(sharedSurface(path, 'DELETE').allowed, false);
+  }
+});

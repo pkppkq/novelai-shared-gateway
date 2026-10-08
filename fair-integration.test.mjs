@@ -95,3 +95,12 @@ test('禁用的组内子账户在派发与预检均拒绝，不影响其他成�
  assert.equal(r.statusCode,401);assert.equal(j.status,'failed');assert.equal(db.accounts[0].inFlight,undefined);assert.equal(j.fairCharge,undefined);assert.deepEqual(db.settings.fairQuota.balances,before);
  await assert.rejects(ctx.assertFairMemberReady('child_one'),e=>e.statusCode===401);
 });
+
+test('相同提示词和种子不能在不同成员间复用缓存',()=>{
+ const ctx=vm.createContext({hashObject:value=>JSON.stringify(value),cacheableRequest:value=>value});
+ const start=source.indexOf('function requestCacheKey('),end=source.indexOf('\n}',start)+2;
+ vm.runInContext(source.slice(start,end),ctx);
+ const request={model:'nai-diffusion-4-5-full',prompt:'synthetic test',seed:42};
+ assert.equal(ctx.requestCacheKey('member-a',request,42),ctx.requestCacheKey('member-a',request,42));
+ assert.notEqual(ctx.requestCacheKey('member-a',request,42),ctx.requestCacheKey('member-b',request,42));
+});

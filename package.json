@@ -1,6 +1,6 @@
 {
   "name": "novelai-shared-gateway",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Self-hosted NovelAI Opus sharing gateway with member quotas and private administration.",
   "main": "server/index.js",
   "type": "module",
@@ -8,7 +8,7 @@
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
     "test": "node --test server/*.test.mjs scripts/*.test.mjs *.test.mjs native-adapter-test.mjs",
-    "check": "node --check server/index.js && node --check server/providers.js && node --check server/store.js && node --check server/sqlite-read-worker.js && node --check public/admin/members.js && node --check public/account.js && node --check server/shared-surface.js",
+    "check": "node --check server/index.js && node --check server/providers.js && node --check server/store.js && node --check server/sqlite-read-worker.js && node --check public/admin/members.js && node --check public/account.js && node --check server/shared-surface.js && node --check server/native-body.js && node --check server/native-image.js && node --check server/native-pricing.js && node --check server/public-hosts.js && node --check server/member-routes.js",
     "bootstrap": "node scripts/bootstrap.mjs"
   },
   "engines": {

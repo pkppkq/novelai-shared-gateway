@@ -1,8 +1,6 @@
+import { quoteNativeRequest } from './native-pricing.js';
 // 所有修改必须在存储事务内执行；账本与任务一起持久化，避免重启后重复扣款。
 const STALE_MS = 10 * 60 * 1000;
-const A = 2.951823174884865e-6;
-const B = 5.753298233447344e-7;
-const MP = 1048576;
 const number = (v) => v === null || v === undefined || v === '' ? null : Number.isFinite(Number(v)) ? Number(v) : null;
 const stamp = (v) => { const n=number(v);return n!==null ? (n<1e11?n*1000:n) : Date.parse(v || '') || 0; };
 const rows = (v) => Array.isArray(v) ? v : Object.values(v || {});
@@ -268,25 +266,7 @@ export function syncFairQuota(db, now = Date.now()) {
 }
 
 export function quoteFairRequest(request = {}, options = {}) {
-  const p=request.nativeParameters || request.parameters || {};
-  const model=String(request.model || '');
-  const width=number(request.width ?? p.width),height=number(request.height ?? p.height),steps=number(request.steps ?? p.steps);
-  if(!width || !height || !steps || width<1 || height<1 || steps<1) fail('无法计价：图片尺寸或步数无效',422);
-  const count=number(request.n_samples ?? p.n_samples ?? request.n ?? 1);
-  const references=['image','mask','reference_image','reference_image_multiple','director_reference_images'];
-  if(count!==1 || (request.action && request.action!=='generate') || references.some(k=>{
-    const v=request[k] ?? p[k];return Array.isArray(v)?v.length>0:Boolean(v);
-  })) fail('公平账本目前仅支持单张纯文生图',422);
-  const v5=/^nai-diffusion-5(?:$|-)/.test(model);
-  const legacy=/^nai-diffusion-(?:3|4(?:-5)?)(?:$|-)/.test(model);
-  if(!v5&&!legacy) fail('该模型尚未建立公平计价规则',422);
-  const pixels=width*height;
-  const free=pixels<=MP && steps<=28;
-  if(v5&&free&&options.forceAnlas!==true) return {resource:'v5',amount:(100/1730)*(pixels/MP)*(A+B*steps)/(A+B*23),estimated:true};
-  if(legacy&&free) return {resource:'free',amount:0,estimated:false};
-  const sm=Boolean(request.sm ?? p.sm),dyn=Boolean(request.sm_dyn ?? p.sm_dyn);
-  const multiplier=sm?(dyn?1.4:1.2):1;
-  return {resource:'anlas',amount:Math.max(2,Math.ceil(Math.ceil(A*pixels+B*pixels*steps)*multiplier*(v5?1.5:1))),estimated:true};
+  return quoteNativeRequest(request, options);
 }
 
 export function reserveFairQuota(db,user,job,account,now=Date.now()) {
