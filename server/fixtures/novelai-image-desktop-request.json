@@ -1,0 +1,47 @@
+{
+  "input": "a small blue bird in a sunny garden",
+  "model": "nai-diffusion-4-5-full",
+  "action": "generate",
+  "parameters": {
+    "params_version": 4,
+    "width": 1024,
+    "height": 1024,
+    "scale": 5,
+    "sampler": "k_euler_ancestral",
+    "steps": 23,
+    "n_samples": 1,
+    "seed": 810,
+    "noise_schedule": "native",
+    "uc": "text, watermark",
+    "negative_prompt": "text, watermark",
+    "ucPreset": 0,
+    "uc_preset": 0,
+    "cfg_rescale": 0,
+    "legacy": false,
+    "legacy_v3_extend": false,
+    "dynamic_thresholding": false,
+    "skip_cfg_above_sigma": null,
+    "qualityPresetId": "standard",
+    "qualityToggle": true,
+    "quality_toggle": true,
+    "tag_hint_qt": 1,
+    "use_coords": false,
+    "v4_prompt": {
+      "caption": {
+        "base_caption": "a small blue bird in a sunny garden",
+        "char_captions": []
+      },
+      "use_coords": false,
+      "use_order": true
+    },
+    "v4_negative_prompt": {
+      "caption": {
+        "base_caption": "text, watermark",
+        "char_captions": []
+      },
+      "use_coords": false,
+      "use_order": false,
+      "legacy_uc": false
+    }
+  }
+}
