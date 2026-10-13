@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { generateNovelAiImage } from './server/providers.js';
+import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
+import { generationPrice, sizeMap } from './public/generation-pricing.js';
+import { generateNovelAiImage, normalizeNovelAiRequest } from './server/providers.js';
 
 const account = { token: 'offline-provider-feature-token' };
 const env = { NOVELAI_API_URL: 'https://configured-upstream.invalid/' };
@@ -158,4 +161,30 @@ test('流式预览后报错或缺失最终结果必须失败，不能把预览�
   const { value } = await captured(() => generateNovelAiImage(request('img2img'), account, env),
     () => new Response(streamBody([intermediate, { event_type: 'final', image: png }]), { headers: { 'content-type': 'application/octet-stream' } }));
   assert.deepEqual(value.buffer, png);
+});
+
+
+test('Medium 通用客户端与原生请求都按实际固定参数发往同一模型，失败不自动重发',async()=>{
+ const model='nai-diffusion-5-full-medium';
+ const generic=normalizeNovelAiRequest({model,prompt:'a calm garden',width:1024,height:1024,steps:28,sampler:'k_dpmpp_2m_sde',cfg:0.5,negative:'discard this custom negative',scale:7},{defaults:{}});
+ assert.equal(generic.steps,14);assert.equal(generic.requestedSteps,14);assert.equal(generic.sampler,'k_euler_ancestral');assert.equal(generic.cfg,0);
+ const native={...generic,nativeParameters:{steps:23,sampler:'k_euler',cfg_rescale:0.7,negative_prompt:'discard this too',v4_prompt:{caption:{base_caption:generic.prompt,char_captions:[]},use_order:true}}};
+ for(const input of [generic,native]){
+  const before=structuredClone(input),{calls}=await captured(()=>generateNovelAiImage(input,account,env,{forceStream:false}));
+  assert.equal(calls.length,1);assert.equal(calls[0].body.model,model);assert.equal(calls[0].body.parameters.steps,14);assert.equal(calls[0].body.parameters.sampler,'k_euler_ancestral');assert.equal(calls[0].body.parameters.cfg_rescale,0);assert.equal(calls[0].body.parameters.tag_hint_uc_preset,2);assert.match(calls[0].body.parameters.negative_prompt,/^nsfw, lowres,/);assert.doesNotMatch(JSON.stringify(calls[0].body),/discard this/);assert.deepEqual(input,before);
+ }
+ const failure=await captured(async()=>{await assert.rejects(generateNovelAiImage(generic,account,env,{forceStream:false}),error=>error.upstreamStatus===429);},()=>new Response('Concurrent generation is locked',{status:429}));assert.equal(failure.calls.length,1);
+});
+
+
+test('模型目录提供 Medium 的唯一采样器组合，旧 High 与 5C 条目保留',()=>{
+ const source=readFileSync(new URL('./server/index.js',import.meta.url),'utf8');
+ const blocks=[/const openAiSamplers = \[[\s\S]*?\n\];/,/const openAiImageModels = \[[\s\S]*?\n\];/,/const openAiSizeTiers = \{[\s\S]*?\n\};/].map(pattern=>{const match=source.match(pattern);assert.ok(match);return match[0];});
+ const start=source.indexOf('function openAiModelsResponse('),end=source.indexOf('\n}',start)+2;assert.ok(start>0);
+ const ctx=vm.createContext({Date,Object,sizeMap,openAiFixedSteps:28,generationCost:generationPrice});
+ const result=vm.runInContext(blocks.join('\n')+'\n'+source.slice(start,end)+'\nopenAiModelsResponse()',ctx);
+ const medium=result.data.filter(item=>item.id.includes('nai-diffusion-5-full-medium'));
+ assert.equal(medium.length,3);assert.ok(medium.every(item=>item.id.endsWith(':k_euler_ancestral')));
+ for(const id of ['nai-diffusion-5-full:k_euler','nai-diffusion-5-curated:k_euler','nai-diffusion-4-5-full:k_euler'])assert.ok(result.data.some(item=>item.id===id));
+ const paid=medium.find(item=>item.id.startsWith('[2K]'));assert.equal(paid.cost,generationPrice({model:'nai-diffusion-5-full-medium',width:1088,height:1600,steps:14}));
 });

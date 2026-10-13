@@ -51,13 +51,13 @@ test('独立登录、只读隔离、管理员权限、CSRF、重置与事务失�
 
  // 创建成员与加入组同事务提交，密码失败、组不存在或预留冲突不会留下半个成员。
  let beforeCreate=structuredClone(db);
- r=await manage({action:'credentials',username:'new-member',password:'Valid-password-new-member',groupId:'missing'});assert.equal(r.status,400);assert.deepEqual(db,beforeCreate);
+ r=await manage({action:'credentials',username:'new-member',password:'synthetic-Valid-password-new-member',groupId:'missing'});assert.equal(r.status,400);assert.deepEqual(db,beforeCreate);
  r=await manage({action:'credentials',username:'new-member',password:'short',groupId:proposed[0].id});assert.equal(r.status,400);assert.deepEqual(db,beforeCreate);
  db.settings.fairQuota.reservations.testHeld={userId:'a',status:'reserved',resource:'free',amount:0};beforeCreate=structuredClone(db);
- r=await manage({action:'credentials',username:'new-member',password:'Valid-password-new-member',groupId:proposed[0].id});assert.equal(r.status,409);assert.deepEqual(db,beforeCreate);
+ r=await manage({action:'credentials',username:'new-member',password:'synthetic-Valid-password-new-member',groupId:proposed[0].id});assert.equal(r.status,409);assert.deepEqual(db,beforeCreate);
  db.settings.fairQuota.reservations.testHeld.status='refunded';
- r=await manage({action:'credentials',username:'new-member',password:'Valid-password-new-member',groupId:proposed[0].id});assert.equal(r.status,200);const created=await r.json();assert.equal(created.id,'new-user');assert.equal(created.groupId,proposed[0].id);assert.ok(db.settings.fairQuota.groups[0].members.includes(created.id));assert.equal(db.settings.fairQuota.balances[created.id].v5Available,0);
- r=await manage({action:'credentials',userId:'a',username:'test-member-a',password:'Another-password-member-a',groupId:proposed[0].id});assert.equal(r.status,400);
+ r=await manage({action:'credentials',username:'new-member',password:'synthetic-Valid-password-new-member',groupId:proposed[0].id});assert.equal(r.status,200);const created=await r.json();assert.equal(created.id,'new-user');assert.equal(created.groupId,proposed[0].id);assert.ok(db.settings.fairQuota.groups[0].members.includes(created.id));assert.equal(db.settings.fairQuota.balances[created.id].v5Available,0);
+ r=await manage({action:'credentials',userId:'a',username:'test-member-a',password:'synthetic-Another-password-member-a',groupId:proposed[0].id});assert.equal(r.status,400);
 
  // 停用保留额度与份额，立即拒绝登录；重新启用不会复活停用前的会话。
  r=await call('/api/member/login',{body:{username:'test-member-a',password:'Reset-password-member-a'}});assert.equal(r.status,200);const priorCookie=r.headers.get('set-cookie').split(';')[0];

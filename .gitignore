@@ -17,3 +17,10 @@ test-results/
 *.zip
 bootstrap-credentials.json
 .DS_Store
+outputs/
+_private/
+*.mp4
+*.mov
+*.webm
+*.gz
+*.bak

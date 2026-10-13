@@ -3,13 +3,16 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import * as fair from './server/fair-quota.js';
+import * as capacity from './server/shared-capacity.js';
 const source=fs.readFileSync(new URL('./server/index.js',import.meta.url),'utf8');
 function fixture(tier=3) {
-  const db={settings:{},users:['a','b','c','d'].map(id=>({id,token:id,balance:100000})),accounts:[{id:'opus',quotaTier:tier,subscriptionActive:true,enabled:true,quotaFixed:10000,quotaPurchased:0,v5UsagePercent:100,v5UsageTimeUntilNextPercent:600,quotaCheckedAt:Date.now()}],jobs:[],ledger:[]};
+  let now=Date.now();
+  class ClockDate extends Date { constructor(...args){super(...(args.length?args:[now]));} static now(){return now;} }
+  const db={settings:{},users:['a','b','c','d'].map(id=>({id,token:id,balance:100000})),accounts:[{id:'opus',quotaTier:tier,subscriptionActive:true,enabled:true,quotaFixed:10000,quotaPurchased:0,v5UsagePercent:100,v5UsageTimeUntilNextPercent:0,quotaCheckedAt:now}],jobs:[],ledger:[]};
   fair.configureFairQuota(db,['a','b','c','d']);
   let queue=Promise.resolve();
-  const ctx=vm.createContext({...fair,console,fairShareMode:true,Date,Number,Map,Set,
-    store:{update(fn){queue=queue.then(()=>fn(db));return queue;}},
+  const ctx=vm.createContext({...fair,...capacity,console,fairShareMode:true,Date:ClockDate,Number,Map,Set,
+    store:{update(fn){queue=queue.catch(()=>{}).then(()=>fn(db));return queue;}},
     httpError:(statusCode,message)=>Object.assign(new Error(message),{statusCode}),
     jobAccountCost:()=>0,isStaleActiveJob:()=>false,isAccountCoolingDown:a=>Date.parse(a.cooldownUntil||'')>Date.now(),
     hasEnabledAccounts:()=>true,dirtyResultJobRows:()=>({}),dirtyReservationJobRows:()=>()=>({}),
@@ -22,11 +25,12 @@ function fixture(tier=3) {
     vm.runInContext((async?'async ':'')+source.slice(start,end),ctx);
   }
   const job=(id,token='a')=>{const j={id,userToken:token,status:'queued',cost:0,request:{model:'nai-diffusion-5-full',width:1024,height:1024,steps:23}};db.jobs.push(j);return j;};
-  return {db,ctx,job};
+  return {db,ctx,job,advance:milliseconds=>{now+=milliseconds;}};
 }
-test('同一用户可占四个全局槽位，第五个排队；失败退款只发生一次',async()=>{
-  const {db,ctx,job}=fixture();for(let i=0;i<5;i++)job(String(i));
-  const result=await Promise.all(db.jobs.map(j=>ctx.reserveQueuedJob(j.id)));
+test('同一用户错开发送后可占本账户四个槽位，第五个排队；失败退款只发生一次',async()=>{
+  const {db,ctx,job,advance}=fixture();for(let i=0;i<5;i++)job(String(i));
+  const result=[];
+  for(const j of db.jobs){result.push(await ctx.reserveQueuedJob(j.id));advance(10000);}
   assert.equal(result.filter(r=>r.job).length,4);assert.equal(result[4].queued,true);
   assert.equal(db.accounts[0].inFlight,4);assert.equal(ctx.availableAccountSlots(db.accounts),0);
   const charged=db.settings.fairQuota.balances.a.v5Available;
@@ -75,10 +79,11 @@ function childrenFixture() {
  fair.syncFairQuota(f.db);return f;
 }
 test('同组两个子账户分担四个并发槽位，各扣各的，其他组不受影响',async()=>{
- const {db,ctx,job}=childrenFixture();const q=fair.quoteFairRequest({model:'nai-diffusion-5-full',width:1024,height:1024,steps:23});
+ const {db,ctx,job,advance}=childrenFixture();const q=fair.quoteFairRequest({model:'nai-diffusion-5-full',width:1024,height:1024,steps:23});
  for(let i=0;i<4;i++)job(`child-${i}`,i%2?'child_two':'child_one');job('fifth','b');
  const before=structuredClone(db.settings.fairQuota.balances);
- const results=await Promise.all(db.jobs.map(j=>ctx.reserveQueuedJob(j.id)));
+ const results=[];
+ for(const j of db.jobs){results.push(await ctx.reserveQueuedJob(j.id));advance(10000);}
  assert.equal(results.filter(r=>r.job).length,4);assert.equal(results[4].queued,true);assert.equal(db.accounts[0].inFlight,4);
  for(const id of ['child_one','child_two'])assert.ok(Math.abs(db.settings.fairQuota.balances[id].v5Available-(before[id].v5Available-2*q.amount))<1e-9);
  for(const id of ['a','b','c','d'])assert.deepEqual(db.settings.fairQuota.balances[id],before[id]);
@@ -88,6 +93,19 @@ test('同组两个子账户分担四个并发槽位，各扣各的，其他组�
  assert.ok(Math.abs(refunded-(before.child_one.v5Available-q.amount))<1e-9);
  assert.ok(Math.abs(db.settings.fairQuota.balances.child_two.v5Available-(before.child_two.v5Available-2*q.amount))<1e-9);
  for(const id of ['b','c','d'])assert.deepEqual(db.settings.fairQuota.balances[id],before[id]);
+});
+
+test('并发提交只立即派发一张，其余保持排队且尚未扣款',async()=>{
+ const {db,ctx,job,advance}=fixture();
+ for(let i=0;i<5;i++)job(`burst-${i}`);
+ const results=await Promise.all(db.jobs.map(j=>ctx.reserveQueuedJob(j.id)));
+ assert.equal(results.filter(result=>result.job).length,1);
+ assert.equal(results.filter(result=>result.queued).length,4);
+ assert.equal(Object.keys(db.settings.fairQuota.reservations).length,1);
+ assert.equal(db.accounts[0].inFlight,1);
+ advance(10000);
+ assert.equal((await ctx.reserveQueuedJob('burst-1')).job.status,'running');
+ assert.equal(db.accounts[0].inFlight,2);
 });
 test('禁用的组内子账户在派发与预检均拒绝，不影响其他成员余额',async()=>{
  const {db,ctx,job}=childrenFixture();db.users.find(u=>u.id==='child_one').enabled=false;

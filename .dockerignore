@@ -12,3 +12,10 @@ test-results
 *.pem
 *.key
 *.log
+outputs
+_private
+*.mp4
+*.mov
+*.webm
+*.gz
+*.bak
