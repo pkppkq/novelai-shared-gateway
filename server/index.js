@@ -1,3 +1,6 @@
+import { nativeImagesMsgpack } from './native-stream.js';
+import { withQuotaRequestDeadline } from './quota-timeout.js';
+import { sharedAccountConcurrency, sharedAccountReadyDelay, recordSharedCapacityError, recordSharedCapacitySuccess } from './shared-capacity.js';
 import { readNativeBody } from './native-body.js';
 import { parseNativeImageRequest as parseValidatedNativeImageRequest, parseNativeAuxiliaryRequest } from './native-image.js';
 import { privateAccessAllowed } from './public-hosts.js';
@@ -77,7 +80,9 @@ const openAiSamplers = [
 ];
 const openAiImageModels = [
   { id: 'nai-diffusion-4-5-full', cost: 1 },
-  { id: 'nai-diffusion-5-full', cost: 8 }
+  { id: 'nai-diffusion-5-full', cost: 8 },
+  { id: 'nai-diffusion-5-full-medium', cost: 8 },
+  { id: 'nai-diffusion-5-curated', cost: 8 }
 ];
 const openAiSizeTiers = {
   '2K': {
@@ -127,12 +132,14 @@ const server = http.createServer(async (req, res) => {
       sendImage(res, 200, image.mimeType, image.buffer, { 'x-error': '1' });
       return;
     }
-    if (/^\/(?:v1\/)?ai\/(?:generate-image|encode-vibe|upscale)$/.test(String(req.url || '').split('?')[0])) {
+    if (/^\/(?:v1\/)?ai\/(?:generate-image(?:-stream)?|encode-vibe|upscale)$/.test(String(req.url || '').split('?')[0])) {
       const message = publicErrorMessage(error.message || 'Internal server error');
+      if (error.statusCode === 429) res.setHeader('Retry-After', '30');
       sendJson(res, error.statusCode || 500, { message, error: message });
       return;
     }
     if (req.url?.startsWith('/v1/')) {
+      if (error.statusCode === 429) res.setHeader('Retry-After', '30');
       sendOpenAiError(res, error.statusCode || 500, publicErrorMessage(error.message || 'Internal server error'), openAiErrorType(error));
       return;
     }
@@ -288,9 +295,7 @@ async function route(req, res) {
     return;
   }
   if (method === 'POST' && ['/ai/generate-image-stream', '/v1/ai/generate-image-stream'].includes(url.pathname)) {
-    await store.update(db => launcherSubscription(db, getUserOrThrow(db, tokenFrom(req, url))), { persist: false });
-    // 启动器识别这段消息后自动改用已有 ZIP 接口；此处不创建任务或扣费。
-    sendJson(res, 403, { message: 'Streaming is not allowed; use /ai/generate-image.', error: 'Streaming is not allowed; use /ai/generate-image.' });
+    await handleNativeImageGeneration(req, res, { stream: true });
     return;
   }
 
@@ -609,7 +614,7 @@ async function handleDirectGenerate(url, res) {
 async function officialKeyInfo(token) {
   officialKeyOwner(token);
   try {
-    const quota = await fetchNovelAiAccountQuota(token, process.env, { signal: AbortSignal.timeout(accountQuotaRequestTimeoutMs) });
+    const quota = await fetchNovelAiAccountQuotaWithTimeout(token);
     return {
       authMode: 'official', balance: null, anlas: quota.points,
       v5RemainingPercent: quota.v5UsageIsNegative ? 0 : quota.v5UsagePercent,
@@ -721,7 +726,7 @@ function logNativeDiagnostic(id, event, details) {
   console.warn('[native-diagnostic] ' + JSON.stringify({ time: new Date().toISOString(), id, event, ...details }));
 }
 
-async function handleNativeImageGeneration(req, res) {
+async function handleNativeImageGeneration(req, res, { stream = false } = {}) {
   const token = bearerToken(req);
   if (!token.startsWith('STA1N-')) throw httpError(401, 'Existing gateway key required.');
   const user = await store.readUserByToken(token);
@@ -772,6 +777,11 @@ async function handleNativeImageGeneration(req, res) {
   }
   if (!entries.length) throw httpError(499, '客户端已断开，请在成员页面检查任务结果');
   const completed = entries.length;
+  if (stream) {
+    const frames = nativeImagesMsgpack(entries.map(entry => entry.buffer), results.find(result => result.status === 'failed'));
+    sendImage(res, 200, 'application/octet-stream', frames, { 'cache-control': 'no-store', 'X-Nai-Image-Count': String(completed), 'X-Nai-Partial': String(completed < count) });
+    return;
+  }
   if (count > 1) entries.push({filename: 'results.json', buffer: Buffer.from(JSON.stringify({requested:count, completed, remaining:count-completed, billing:'independent_single_images', results}), 'utf8')});
   const archive = nativeImagesZip(entries);
   sendImage(res, 200, 'application/zip', archive, { 'cache-control': 'no-store', 'content-disposition': 'attachment; filename="images.zip"', 'X-Nai-Image-Count': String(completed), 'X-Nai-Partial': String(completed < count) });
@@ -830,7 +840,7 @@ async function handleOpenAiChatCompletion(req, res) {
     await timeoutJob(job.id);
     throw httpError(504, 'direct generate timeout');
   }
-  if (result.error) throw httpError(isTimeoutResultMessage(result.error) ? 504 : 500, result.error);
+  if (result.error) throw httpError(result.statusCode || (isTimeoutResultMessage(result.error) ? 504 : 500), result.error);
 
   sendJson(res, 200, openAiChatCompletionResponse({
     model: parsed.model,
@@ -844,7 +854,7 @@ function openAiModelsResponse() {
   return {
     object: 'list',
     data: [
-      ...openAiImageModels.flatMap((model) => openAiSamplers.map((sampler) => ({
+      ...openAiImageModels.flatMap((model) => openAiSamplers.filter(sampler => model.id !== 'nai-diffusion-5-full-medium' || sampler === 'k_euler_ancestral').map((sampler) => ({
         id: `${model.id}:${sampler}`,
         object: 'model',
         created,
@@ -852,7 +862,7 @@ function openAiModelsResponse() {
         cost: model.cost,
         resolution_tier: 'standard'
       }))),
-      ...Object.entries(openAiSizeTiers).flatMap(([tierName, tier]) => openAiImageModels.flatMap((model) => openAiSamplers.map((sampler) => ({
+      ...Object.entries(openAiSizeTiers).flatMap(([tierName, tier]) => openAiImageModels.flatMap((model) => openAiSamplers.filter(sampler => model.id !== 'nai-diffusion-5-full-medium' || sampler === 'k_euler_ancestral').map((sampler) => ({
         id: `${tier.label}${model.id}:${sampler}`,
         object: 'model',
         created,
@@ -1649,6 +1659,13 @@ function accountQuotaErrorResult(id, error, now) {
 }
 
 function applyAccountQuotaResult(account, result, now) {
+  // 查询暂时失败时保留上次余额展示；quotaError 立即阻止继续派发。
+  if (!result.ok) {
+    account.quotaError = result.quotaError; account.upstreamStatus = result.upstreamStatus;
+    account.quotaAttemptedAt = now; account.updatedAt = now;
+    if (result.disableAccount) disableNovelAiAccount(account);
+    return;
+  }
   account.trialRemainingImages = result.trialRemainingImages ?? null;
   account.trialUsedImages = result.trialUsedImages ?? null;
   account.trialEligible = result.trialEligible === true;
@@ -1672,7 +1689,7 @@ function applyAccountQuotaResult(account, result, now) {
 
 function accountAvailability(account, settings = {}) {
   const now = Date.now();
-  const maxConcurrency = maxAccountConcurrency(settings);
+  const maxConcurrency = maxAccountConcurrency(settings, account);
   const inFlight = Number(account.inFlight || 0);
   const cooldownUntilMs = Date.parse(account.cooldownUntil || '');
   const coolingDown = Number.isFinite(cooldownUntilMs) && cooldownUntilMs > now;
@@ -1754,16 +1771,10 @@ function disableNovelAiAccount(account) {
 }
 
 async function fetchNovelAiAccountQuotaWithTimeout(token, proxyUrl = '') {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), accountQuotaRequestTimeoutMs);
-  try {
-    return await fetchNovelAiAccountQuota(token, process.env, {
-      signal: controller.signal,
-      proxyUrl
-    });
-  } finally {
-    clearTimeout(timer);
-  }
+  return withQuotaRequestDeadline(
+    signal => fetchNovelAiAccountQuota(token, process.env, { signal, proxyUrl }),
+    accountQuotaRequestTimeoutMs
+  );
 }
 
 async function mapLimit(items, limit, mapper) {
@@ -2146,8 +2157,8 @@ async function assertFairMemberReady(token) {
   const result = await store.update(db => {
     const user = getUserOrThrow(db, token);
     const state = syncFairQuota(db);
-    if (!state?.enabled) return { status: 503, message: '四人共享账本尚未配置' };
-    if (!state.members.includes(user.id)) return { status: 403, message: '该 Key 未加入四人共享账本' };
+    if (!state?.enabled) return { status: 503, message: '共享账本尚未配置' };
+    if (!state.members.includes(user.id)) return { status: 403, message: '该 Key 未加入共享账本' };
     if (state.status !== 'active') return { status: 503, message: `共享 Opus 暂不可用：${state.status}` };
     return null;
   }, { collections: ['settings'] });
@@ -2509,11 +2520,13 @@ async function reserveQueuedJob(jobId) {
     if (fairShareMode) {
       const state = syncFairQuota(db);
       try {
-        if (!state?.enabled || state.status !== 'active') throw httpError(503, `共享 Opus 暂不可用：${state?.status || '未配置四人成员'}`);
+        if (!state?.enabled || state.status !== 'active') throw httpError(503, `共享 Opus 暂不可用：${state?.status || '未配置成员'}`);
         account = db.accounts.find(a => a.id === state.boundAccountId);
         if (!account || account.enabled === false) throw httpError(503, '绑定的 Opus 账号未启用');
-        const running = db.jobs.filter(j => j.status === 'running').length;
-        if (running >= 4 || isAccountCoolingDown(account, Date.now())) return { queued: true, jobId: job.id };
+        const running = db.jobs.filter(j => j.status === 'running' && j.accountId === account.id).length;
+        // 按本账户在途任务和持久计数共同核对槽位，错开发送并遵守上游退避。
+        const load = Math.max(running, Number(account.inFlight || 0));
+        if (load >= sharedAccountConcurrency(account) || sharedAccountReadyDelay(account, Date.now(), load) > 0) return { queued: true, jobId: job.id };
         reserveFairQuota(db, getUserOrThrow(db, job.userToken), job, account);
       } catch (error) {
         refundJob(db, job, error.message);
@@ -2540,10 +2553,13 @@ async function reserveQueuedJob(jobId) {
       return { queued: true, jobId: job.id };
     }
     if (account) {
-      account.inFlight = Number(account.inFlight || 0) + 1;
+      const running = fairShareMode ? db.jobs.filter(j => j.status === 'running' && j.accountId === account.id).length : 0;
+      account.inFlight = Math.max(running, Number(account.inFlight || 0)) + 1;
       account.lastUsedAt = new Date().toISOString();
+      if (fairShareMode) account.lastSharedDispatchAt = account.lastUsedAt;
     }
     job.status = 'running';
+    job.startedAt = new Date().toISOString();
     job.accountId = account?.id || '';
     job.completedAt = '';
     job.updatedAt = new Date().toISOString();
@@ -2671,6 +2687,13 @@ async function generateWithAccountRetry(reservation, request, options = {}) {
       const image = await generateNovelAiImage(request, current.account, process.env, {
         signal: options.signal,
         forceStream: options.forceStream,
+        onUpstreamTiming: event => {
+          // 只记录时间与状态，不复制请求头、凭据、提示词或图片。
+          reservation.upstreamTiming ||= {};
+          for (const name of ['upstreamStartedAt', 'upstreamHeadersAt', 'upstreamCompletedAt', 'upstreamHttpStatus']) {
+            if (event[name] !== undefined) reservation.upstreamTiming[name] = event[name];
+          }
+        },
         onProgress: (progress) => options.onProgress?.({
           ...progress,
           accountId: current.account?.id || '',
@@ -2866,6 +2889,7 @@ async function completeGeneration(reservation, request, image, meta = {}) {
       const user = getUserOrThrow(db, reservation.token);
       const account = reservation.account ? db.accounts.find((item) => item.id === reservation.account.id) : null;
       if (account) {
+        if (fairShareMode && !image.mock) recordSharedCapacitySuccess(account, Date.now(), reservation.job?.fairCharge?.reservedAt || Date.now());
         account.inFlight = Math.max(0, Number(account.inFlight || 0) - 1);
         account.total = Number(account.total || 0) + 1;
         account.updatedAt = new Date().toISOString();
@@ -2895,6 +2919,7 @@ async function completeGeneration(reservation, request, image, meta = {}) {
       if (meta.jobId) {
         const job = db.jobs.find((item) => item.id === meta.jobId);
         if (job) {
+          Object.assign(job, reservation.upstreamTiming || {});
           if (fairShareMode) settleFairQuota(db, job, true);
           job.status = 'done';
           job.imageId = saved.id;
@@ -2942,6 +2967,7 @@ async function cancelReservedJob(reservation, error) {
       account.updatedAt = new Date().toISOString();
     }
     refundJob(db, job, message);
+    Object.assign(job, reservation.upstreamTiming || {});
     job.status = 'failed';
     job.error = message;
     job.errorDetail = detail || 'job aborted';
@@ -2962,7 +2988,9 @@ async function cancelReservedJob(reservation, error) {
 
 async function failGeneration(reservation, error) {
   const detail = errorDetailMessage(error);
-  const message = fairShareMode && error?.upstreamStatus === 401 ? '共享 Opus Key 已失效，请联系管理员更新凭据' : fairShareMode && error?.upstreamStatus === 403 ? '上游拒绝访问，请联系管理员重新验证 Opus' : publicErrorMessage(error?.message || detail);
+  const capacityError = fairShareMode && isNovelAiCapacityError(error);
+  const statusCode = capacityError ? 429 : error.statusCode || 500;
+  const message = capacityError ? 'NAI 暂时限制此共享账户的并发，请等待至少 30 秒后再试；本次失败额度已退回。' : fairShareMode&&error?.upstreamStatus===401?'共享 Opus Key 已失效，请联系管理员更新凭据':fairShareMode&&error?.upstreamStatus===403?'上游拒绝访问，请联系管理员重新验证 Opus':publicErrorMessage(error?.message || detail);
   await store.update((db) => {
     if (fairShareMode && reservation.job?.id) {
       const currentJob = db.jobs.find(j => j.id === reservation.job.id);
@@ -2976,10 +3004,13 @@ async function failGeneration(reservation, error) {
     const account = reservation.account ? db.accounts.find((item) => item.id === reservation.account.id) : null;
     if (account) {
       account.inFlight = Math.max(0, Number(account.inFlight || 0) - 1);
-      if (fairShareMode && isNovelAiCapacityError(error)) account.cooldownUntil = new Date(Date.now() + 30_000).toISOString();
-      if (fairShareMode && [401, 403].includes(error.upstreamStatus) && account.token === reservation.account?.token) {
-        account.upstreamStatus = error.upstreamStatus === 401 ? 'invalid_key' : 'access_denied';
-        account.quotaError = message;
+      if (capacityError) {
+        const running = db.jobs.filter(job => job.status === 'running' && job.accountId === account.id).length;
+        recordSharedCapacityError(account, Date.now(), Math.max(running, Number(account.inFlight || 0) + 1));
+      } else if (fairShareMode && account.capacityConcurrencyLimit) account.capacitySuccesses = 0;
+      if(fairShareMode&&[401,403].includes(error.upstreamStatus)&&account.token===reservation.account?.token){
+        account.upstreamStatus=error.upstreamStatus===401?'invalid_key':'access_denied';
+        account.quotaError=error.upstreamStatus===401?'共享 Opus Key 已失效，请管理员更新凭据':'上游拒绝访问，请管理员重新验证 Opus';
       }
       account.failures = Number(account.failures || 0) + 1;
       account.updatedAt = new Date().toISOString();
@@ -2987,9 +3018,11 @@ async function failGeneration(reservation, error) {
     if (reservation.job?.id) {
       const job = db.jobs.find((item) => item.id === reservation.job.id);
       if (job) {
+        Object.assign(job, reservation.upstreamTiming || {});
         if (fairShareMode) settleFairQuota(db, job, false);
         job.status = 'failed';
         job.error = message;
+        job.errorStatus = statusCode;
         job.errorDetail = detail;
         job.updatedAt = new Date().toISOString();
         job.completedAt = job.updatedAt;
@@ -3010,7 +3043,7 @@ async function failGeneration(reservation, error) {
   scheduleQueueDrain();
   if (reservation.job?.id) {
     clearJobStreamProgress(reservation.job.id);
-    notifyJobWaiters(reservation.job.id, { error: message });
+    notifyJobWaiters(reservation.job.id, { error: message, statusCode });
   }
 }
 
@@ -3128,12 +3161,13 @@ function hasPaidQuota(account) {
   return account.quotaError !== '点数不足' && (quota === null || quota > 0);
 }
 
-function maxAccountConcurrency(settings = {}) {
-  return fairShareMode ? 4 : 1;
+function maxAccountConcurrency(settings = {}, account = null) {
+  return fairShareMode ? sharedAccountConcurrency(account) : 1;
 }
 
 function availableAccountSlots(accounts, settings = {}) {
-  if (fairShareMode) return Math.max(0, 4 - accounts.reduce((n, a) => n + Number(a.inFlight || 0), 0));
+  if (fairShareMode) return accounts.reduce((total, account) => account.enabled === false || sharedAccountReadyDelay(account, Date.now()) > 0
+    ? total : total + Math.max(0, sharedAccountConcurrency(account) - Number(account.inFlight || 0)), 0);
   resetStaleAccountLoads(accounts);
   const now = Date.now();
   const allEnabled = accounts.filter((account) => account.enabled !== false);
@@ -3146,6 +3180,12 @@ function availableAccountSlots(accounts, settings = {}) {
 
 function nextAccountReadyDelay(accounts, settings = {}) {
   resetStaleAccountLoads(accounts);
+  if (fairShareMode) {
+    const now = Date.now();
+    const waits = accounts.filter(account => account.enabled !== false && Number(account.inFlight || 0) < sharedAccountConcurrency(account, now))
+      .map(account => sharedAccountReadyDelay(account, now));
+    return waits.length ? Math.min(...waits) : 1000;
+  }
   const now = Date.now();
   const maxConcurrency = maxAccountConcurrency(settings);
   const enabled = accounts.filter((account) => account.enabled !== false);
@@ -4277,7 +4317,7 @@ function corsHeaders() {
     'access-control-allow-origin': '*',
     'access-control-expose-headers': 'Retry-After, X-Nai-Diagnostic-Id, X-Nai-Request-Id, X-Nai-Image-Count, X-Nai-Partial',
     'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
-    'access-control-allow-headers': 'content-type,authorization,x-admin-token,x-user-token,x-requested-with,x-request-id,x-correlation-id,x-initiated-at,user-agent,accept'
+    'access-control-allow-headers': 'content-type,authorization,x-admin-token,x-user-token,x-requested-with,x-request-id,x-correlation-id,x-initiated-at,user-agent,accept,idempotency-key'
   };
 }
 

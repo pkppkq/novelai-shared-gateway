@@ -25,12 +25,21 @@ test('原生单图兼容原 contract，不改变调用者对象，种子保持�
  for(const seed of [-1,undefined])assert.ok(Number.isInteger(parseNativeImageRequest(request({seed})).seed));
 });
 test('V3、V4、V4.5、V5 模型和最多四张输入均正确保留',()=>{
- for(const current of ['nai-diffusion-3','nai-diffusion-furry-3','nai-diffusion-4-curated-preview','nai-diffusion-4-full','nai-diffusion-4-5-full','nai-diffusion-4-5-curated','nai-diffusion-5-full']){
+ for(const current of ['nai-diffusion-3','nai-diffusion-furry-3','nai-diffusion-4-curated-preview','nai-diffusion-4-full','nai-diffusion-4-5-full','nai-diffusion-4-5-curated','nai-diffusion-5-full','nai-diffusion-5-curated']){
   const result=parseNativeImageRequest(request({n_samples:4},{model:current}));assert.equal(result.model,current);assert.equal(result.sampleCount,4);assert.equal(result.nativeParameters.n_samples,4);
  }
  for(const n_samples of [0,5,1.2,'2'])rejects(request({n_samples}));
- rejects(request({}, {model:'nai-diffusion-5-curated'}));
+ rejects(request({}, {model:'nai-diffusion-5-unknown'}));
  rejects(request({width:2048,height:2048}),'像素');
+});
+test('5C 图生图保留模型，未验证的重绘与参考组合不静默降级',()=>{
+ const current='nai-diffusion-5-curated';
+ const parsed=parseNativeImageRequest(request({image,strength:0.5,noise:0.1,inpaintImg2ImgStrength:1},{action:'img2img',model:current}));
+ assert.equal(parsed.model,current);assert.equal(parsed.baseModel,current);assert.equal(parsed.nativeParameters.image,image);assert.equal(parsed.nativeParameters.strength,0.5);assert.equal(parsed.nativeParameters.inpaintImg2ImgStrength,undefined);
+ rejects(request({image,strength:0.5,inpaintImg2ImgStrength:0.2},{action:'img2img',model:current}),'局部重绘强度');
+ for(const currentModel of [current,current+'-inpainting'])rejects(request({image,mask:image},{action:'infill',model:currentModel}),'V4.5 Curated');
+ rejects(request({reference_image_multiple:[encoding],reference_strength_multiple:[1]},{model:current}),'V5');
+ rejects(request(precise(),{model:current}),'V4.5');
 });
 test('非法参数不能透传未知计费功能，数值和类型边界在入队前拒绝',()=>{
  for(const parameters of [{upscale:{}},{upscaled_enhance:true},{some_new_paid_feature:true},{image:'https://example.invalid/secret'},{scale:NaN},{scale:Infinity},{scale:'5'},{cfg_rescale:1.1},{steps:0},{seed:-2},{sm:true},{sm:'false'},{noise_schedule:'invalid'},{sampler:'invalid'},{v4_prompt:{caption:{base_caption:'x',char_captions:[{char_caption:'x',centers:[{x:NaN,y:0}]}]}}}])rejects(request(parameters));
@@ -114,4 +123,22 @@ test('新版与旧版放大均归一为官网 2 倍接口，按实际像素拒�
  const modern=parseNativeAuxiliaryRequest({image,model:'nai-diffusion-5-curated',declared_blur_sigma:0},'upscale');
  const legacy=parseNativeAuxiliaryRequest({image,width:128,height:128,scale:2},'upscale');assert.deepEqual(modern.operationParameters,legacy.operationParameters);assert.equal(legacy.width,128);
  for(const body of [{image,width:256,height:128,scale:2},{image,scale:4},{image,declared_blur_sigma:0.5},{image,model:'unknown'}])assert.throws(()=>parseNativeAuxiliaryRequest(body,'upscale'),error=>error.statusCode===422);
+});
+
+
+test('Medium 固定 14 步和 Euler ancestral，使用官方 heavy 负面且保留正向多角色',()=>{
+ const v4_prompt={caption:{base_caption:'a peaceful garden',char_captions:[{char_caption:'a gardener',centers:[{x:0.3,y:0.5}]}]},use_coords:true,use_order:true};
+ const source=request({steps:28,sampler:'k_dpmpp_2m_sde',cfg_rescale:0.5,scale:6.2,negative_prompt:'custom negative',ucPreset:0,ucPresetId:'none',v4_prompt,v4_negative_prompt:{caption:{base_caption:'custom negative',char_captions:[{char_caption:'custom character negative',centers:[{x:0.3,y:0.5}]}]}}},{model:'nai-diffusion-5-full-medium'});
+ const snapshot=structuredClone(source),parsed=parseNativeImageRequest(source),p=parsed.nativeParameters;
+ assert.equal(parsed.model,'nai-diffusion-5-full-medium');assert.equal(parsed.steps,14);assert.equal(p.steps,14);assert.equal(p.sampler,'k_euler_ancestral');assert.equal(p.cfg_rescale,0);assert.equal(p.scale,6.2);
+ assert.equal(p.ucPresetId,'heavy');assert.equal(p.ucPreset,undefined);assert.equal(p.tag_hint_uc_preset,2);assert.match(p.negative_prompt,/^nsfw, lowres, artistic error/);assert.equal(p.uc,p.negative_prompt);
+ assert.deepEqual(p.v4_prompt,v4_prompt);assert.equal(p.v4_negative_prompt.caption.base_caption,p.negative_prompt);assert.equal(p.v4_negative_prompt.caption.char_captions[0].char_caption,'');assert.deepEqual(p.v4_negative_prompt.caption.char_captions[0].centers,v4_prompt.caption.char_captions[0].centers);assert.deepEqual(source,snapshot);
+ const noSteps=parseNativeImageRequest(request({steps:undefined},{model:'nai-diffusion-5-full-medium',input:'NSFW label in a synthetic test'}));assert.equal(noSteps.steps,14);assert.match(noSteps.nativeParameters.negative_prompt,/^lowres,/);
+});
+
+test('Medium 图生图与局部重绘保留动作和图片，不允许未支持的参考功能',()=>{
+ const model='nai-diffusion-5-full-medium';
+ const ordinary=parseNativeImageRequest(request({image,strength:0.5,noise:0.1},{action:'img2img',model}));assert.equal(ordinary.model,model);assert.equal(ordinary.steps,14);assert.equal(ordinary.nativeParameters.image,image);assert.equal(ordinary.nativeParameters.strength,0.5);
+ for(const supplied of [model,model+'-inpainting']){const parsed=parseNativeImageRequest(request({image,mask:image,img2img:{strength:0.7}},{action:'infill',model:supplied}));assert.equal(parsed.model,model+'-inpainting');assert.equal(parsed.steps,14);assert.equal(parsed.nativeParameters.mask,image);assert.equal(parsed.nativeParameters.img2img.strength,0.7);}
+ rejects(request({}, {model:model+'-inpainting'}),'infill');rejects(request({reference_image_multiple:[encoding],reference_strength_multiple:[1]},{model}),'V5');rejects(request(precise(),{model}),'V4.5');
 });

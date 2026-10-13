@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { parseNativeImageRequest } from './native-image.js';
 
 // 只复刻线上失败请求的结构，提示词和种子使用合成数据。
@@ -162,4 +163,72 @@ test('官网与柏宝绘的 DPM++ 2S Ancestral 采样器按原值通过，未知
   const body = clientRequest();
   body.parameters.sampler = 'unknown_sampler';
   assert.throws(() => parseNativeImageRequest(body), error => error.statusCode === 422 && error.message.includes('采样器'));
+});
+
+// 请求结构来自 novelai-image-desktop 2.5.7 的 electron/ipc/nai.ts，提示词和种子为合成值。
+// 公开源码提交：2d609393c3902874afae5200c26165d86b76055f。
+const desktopRequest = JSON.parse(readFileSync(new URL('./fixtures/novelai-image-desktop-request.json', import.meta.url), 'utf8'));
+
+test('桌面客户端重复预设别名归一为原参数，不重复添加提示词或修改请求对象', () => {
+  const input = structuredClone(desktopRequest), canonical = structuredClone(input);
+  delete canonical.parameters.uc_preset; delete canonical.parameters.quality_toggle;
+  const parsed = parseNativeImageRequest(input);
+  assert.deepEqual(parsed, parseNativeImageRequest(canonical));
+  assert.equal(parsed.prompt, input.input); assert.equal(parsed.negative, input.parameters.negative_prompt);
+  assert.equal(parsed.nativeParameters.ucPreset, 0); assert.equal(parsed.nativeParameters.qualityToggle, true);
+  assert.equal(Object.hasOwn(parsed.nativeParameters, 'uc_preset'), false);
+  assert.equal(Object.hasOwn(parsed.nativeParameters, 'quality_toggle'), false);
+  assert.deepEqual(input, desktopRequest);
+});
+
+test('只发送下划线别名时保留零预设和关闭质量开关', () => {
+  const input = structuredClone(desktopRequest);
+  delete input.parameters.ucPreset; delete input.parameters.qualityToggle;
+  input.parameters.quality_toggle = false; input.parameters.qualityPresetId = 'none'; input.parameters.tag_hint_qt = 0;
+  const parsed = parseNativeImageRequest(input);
+  assert.equal(parsed.nativeParameters.ucPreset, 0); assert.equal(parsed.nativeParameters.qualityToggle, false);
+  assert.equal(parsed.nativeParameters.qualityPresetId, 'none'); assert.equal(parsed.nativeParameters.tag_hint_qt, 0);
+});
+
+test('桌面客户端两套名称冲突时明确拒绝，不能靠别名覆盖已有值', () => {
+  for (const [alias, value, canonical] of [['uc_preset', 1, 'ucPreset'], ['quality_toggle', false, 'qualityToggle']]) {
+    const input = structuredClone(desktopRequest); input.parameters[alias] = value;
+    assert.throws(() => parseNativeImageRequest(input), error => error.statusCode === 422 && error.message.includes(alias) && error.message.includes(canonical) && error.message.includes('不一致'));
+  }
+});
+
+test('预设别名沿用原字段类型及取值校验，不强制转换非法值', () => {
+  for (const [alias, field, invalids] of [
+    ['uc_preset', 'ucPreset', ['0', true, [], {}, null, -1, 21, 0.5]],
+    ['quality_toggle', 'qualityToggle', ['true', 0, 1, [], {}]],
+  ]) for (const value of invalids) {
+    const input = structuredClone(desktopRequest);
+    delete input.parameters[field]; input.parameters[alias] = value;
+    assert.throws(() => parseNativeImageRequest(input), error => error.statusCode === 422 && error.message.includes(field));
+  }
+});
+
+test('质量开关别名的 null 与原模板保持一致，不能掩盖冲突的已启用值', () => {
+  const input = structuredClone(desktopRequest);
+  delete input.parameters.qualityToggle; input.parameters.quality_toggle = null;
+  assert.equal(Object.hasOwn(parseNativeImageRequest(input).nativeParameters, 'qualityToggle'), false);
+  input.parameters.qualityToggle = true;
+  assert.throws(() => parseNativeImageRequest(input), error => error.statusCode === 422 && error.message.includes('不一致'));
+});
+
+test('未知扩展错误列出有限字段名，不回显参数值、提示词或异常字段内容', () => {
+  const input = structuredClone(desktopRequest);
+  input.parameters.quality_boost = 'synthetic-sensitive-value';
+  assert.throws(() => parseNativeImageRequest(input), error => {
+    assert.equal(error.statusCode, 422); assert.match(error.message, /未知字段：quality_boost/);
+    assert.equal(error.message.includes(input.parameters.quality_boost), false);
+    assert.equal(error.message.includes(input.input), false); return true;
+  });
+  delete input.parameters.quality_boost;
+  for (const name of ['<script>private</script>', 'x'.repeat(100), 'line\nbreak', 'extra_a', 'extra_b', 'extra_c', 'not_shown']) input.parameters[name] = 'synthetic-sensitive-value';
+  assert.throws(() => parseNativeImageRequest(input), error => {
+    assert.equal(error.statusCode, 422); assert.match(error.message, /字段名已省略/); assert.match(error.message, /extra_a/);
+    assert.equal(error.message.includes('private'), false); assert.equal(error.message.includes('not_shown'), false);
+    assert.equal(error.message.includes('synthetic-sensitive-value'), false); assert.ok(error.message.length < 500); return true;
+  });
 });

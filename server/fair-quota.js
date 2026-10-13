@@ -17,6 +17,7 @@ function upgradeGroups(s) {
   if (!s.groups) s.groups=s.members.map((id,i)=>({id:`group_${i+1}`,name:`第 ${i+1} 组`,members:[id]}));
   for(const group of s.groups){group.share ??= .25;group.memberWeights=Object.fromEntries(group.members.map(id=>[id,group.memberWeights?.[id] ?? 1]));}
   s.version=2;s.configVersion ||= 1;s.configurationHistory ||= [];
+  s.unallocatedV5 ||= 0;
   s.spent.fallbackFixed ||= 0;s.spent.fallbackPurchased ||= 0;s.spent.fallbackV5 ||= 0;
   s.fallbackBuffer ||= {fixed:0,purchased:0};s.fallbackTotalsByUser ||= {};s.sharedV5Debt ||= 0;
   return s;
@@ -192,6 +193,53 @@ function distribute(s, resource, delta) {
   return 0;
 }
 
+// 只让有份额且尚未满额的钱包参与恢复；在途预留同样占容量。
+function v5RecoveryMembers(db, s, now) {
+  return s.members.flatMap(id=>{
+    const share=weight(s,id),balance=s.balances[id];
+    if(!(share>0)||!balance)return [];
+    const gap=Math.max(0,100*share-held(s,id,'v5')-balance.v5Available);
+    if(gap<=1e-9)return [];
+    // 停用只拦登录与调用；保留管理员已分配的份额。
+    return [{id,share,gap}];
+  });
+}
+
+function distributeV5Recovery(db, s, delta, now) {
+  let remaining=Math.max(0,delta),actual=0,participants=v5RecoveryMembers(db,s,now);
+  while(remaining>1e-9&&participants.length) {
+    const totalShare=participants.reduce((total,member)=>total+member.share,0),budget=remaining;
+    let credited=0;
+    for(const member of participants) {
+      const add=Math.min(member.gap,budget*member.share/totalShare);
+      s.balances[member.id].v5Available+=add;member.gap-=add;credited+=add;
+    }
+    actual+=credited;remaining=Math.max(0,remaining-credited);
+    const unfilled=participants.filter(member=>member.gap>1e-9);
+    // 本轮有人满额时，把未用完的恢复继续分给其余人；没有人满额则预算已分完。
+    if(unfilled.length===participants.length)break;
+    participants=unfilled;
+  }
+  return actual;
+}
+
+// 官方聚合差额只用于来源核对，不能据此向闲置成员扣款。
+function recordV5Reconciliation(s, incoming, now) {
+  const localAvailable=sum(s,'v5Available'), assigned=Math.max(0,incoming.v5-s.unallocatedV5);
+  const difference=assigned-Math.max(0,localAvailable-s.sharedV5Debt);
+  const tolerance=Number.isInteger(incoming.v5)?1:0;
+  const status=difference < -tolerance-1e-9?'source_below_local':difference > tolerance+1e-9?'source_above_local':'within_precision';
+  const entry={at:now,sourceCheckedAt:incoming.at,officialV5:incoming.v5,localAvailable,sharedV5Debt:s.sharedV5Debt,
+    unallocatedV5:s.unallocatedV5,difference,tolerance,status,personalDelta:0,policy:'personal_wallet_v1'};
+  s.v5Reconciliation=entry;
+  const history=s.v5ReconciliationHistory ||= [],previous=history.at(-1);
+  // 同一差额不按每分钟刷屏；跨显示格或恢复正常时留痕，审计不包含成员身份与请求内容。
+  const changed=previous?.status!==status||previous?.officialV5!==incoming.v5||Math.floor(Math.abs(previous?.difference || 0))!==Math.floor(Math.abs(difference));
+  if((status!=='within_precision'&&changed)||(status==='within_precision'&&previous&&previous.status!==status)) {
+    history.push(entry);s.v5ReconciliationHistory=history.slice(-200);
+  }
+}
+
 function readSnapshot(a) {
   const percent=number(a.v5UsagePercent), fixed=number(a.quotaFixed), purchased=number(a.quotaPurchased);
   return {at:stamp(a.quotaCheckedAt),v5: a.v5UsageIsNegative ? 0 : percent === null ? null : Math.max(0,Math.min(100,percent)),
@@ -217,7 +265,8 @@ export function syncFairQuota(db, now = Date.now()) {
   if(!s.snapshot) {
     if(incoming.v5===null || incoming.anlas===null) {s.status='unknown_balance';return s;}
     s.snapshot=incoming;s.lastRefillAt=now;
-    distribute(s,'v5',incoming.v5);distribute(s,'anlasFixed',incoming.anlasFixed);distribute(s,'anlasPurchased',incoming.anlasPurchased);
+    distribute(s,'v5',Math.max(0,incoming.v5-s.unallocatedV5));distribute(s,'anlasFixed',incoming.anlasFixed);distribute(s,'anlasPurchased',incoming.anlasPurchased);
+    recordV5Reconciliation(s,incoming,now);
     return s;
   }
   const old=s.snapshot;
@@ -225,29 +274,18 @@ export function syncFairQuota(db, now = Date.now()) {
   const until=Math.min(now,old.at+STALE_MS);
   if(old.seconds>0 && until>s.lastRefillAt) {
     const elapsed=(until-s.lastRefillAt)/1000/old.seconds;
-    const projected=Math.min(100,old.v5+Math.max(0,until-old.at)/1000/old.seconds);
+    const projected=Math.max(0,Math.min(100,old.v5+Math.max(0,until-old.at)/1000/old.seconds)-s.unallocatedV5);
     // 本地转扣可能仍消耗共享 V5。先用恢复偿还此估算负债，不能重复发放给个人。
     const repaid=Math.min(s.sharedV5Debt,elapsed);s.sharedV5Debt-=repaid;
     const reserves=sharedHeld(s);
     const room=Math.max(0,projected-s.spent.v5-reserves-sum(s,'v5Available'));
-    s.creditedV5+=distribute(s,'v5',Math.min(elapsed-repaid,room));
+    s.creditedV5+=distributeV5Recovery(db,s,Math.min(elapsed-repaid,room),now);
   }
   s.lastRefillAt=Math.max(s.lastRefillAt,until);
   // 并发生成期间的快照无法归属消费，待全部结清且取得新快照后校准。
   if(incoming.at>old.at && incoming.at>=s.lastSettlementAt && !anyHeld(s) && incoming.v5!==null && incoming.anlas!==null) {
-    // 官方 V5 常只返回整数百分比，单张消费尚不可见时不能按余额差额退回估算扣费。
-    // 日常恢复只由上面的官方恢复周期驱动；快照仅校准超过显示精度的偏差。
-    const v5Total=sum(s,'v5Available');
-    const tolerance=Number.isInteger(incoming.v5)?1:0;
-    const difference=incoming.v5-v5Total;
-    const deficit=incoming.v5-(v5Total-s.sharedV5Debt);
-    if(deficit < -tolerance-1e-9) {
-      // 余额明显高估时直接降至官方值，不借显示容差继续透支。
-      distribute(s,'v5',deficit);
-    } else if(difference > tolerance+1e-9) {
-      // 正向校准最多补到官方显示区间的下界，不把尚未显示的消费再次发放。
-      distribute(s,'v5',difference-tolerance);
-    }
+    // 快照用于来源核对和安全派发，不把未知消费分摊给闲置成员，也不把差额当恢复增发。
+    recordV5Reconciliation(s,incoming,now);
     for(const [resource,pool] of [['anlasFixed','fixed'],['anlasPurchased','purchased']]) {
       // 本地转扣不是已证实的上游 Anlas 消费，绝不加进普通充值校正。
       let delta=incoming[resource]-old[resource]+s.spent[resource];
@@ -349,11 +387,29 @@ export function settleFairQuota(db,job,success,now=Date.now()) {
 export function fairQuotaSummary(db,user,now=Date.now()) {
   const s=syncFairQuota(db,now);
   if(!s?.enabled) return null;
-  const b=s.balances[user.id],group=groupFor(s,user.id),share=weight(s,user.id);
+  const raw=s.balances[user.id],b=raw,group=groupFor(s,user.id),share=weight(s,user.id);
   const localFallback=s.fallbackTotalsByUser[user.id] || {fixed:0,purchased:0,v5Equivalent:0};
-  return {enabled:true,status:s.status,member:Boolean(b),share,autoAnlasFallback:s.autoAnlasFallback===true,
+  const capacity=100*share,available=b?.v5Available??0,reserved=b?held(s,user.id,'v5'):0;
+  const officialRate=s.snapshot?.seconds>0?1/s.snapshot.seconds:0;
+  const participants=v5RecoveryMembers(db,s,now),recoveringShare=participants.reduce((total,member)=>total+member.share,0);
+  const participant=participants.find(member=>member.id===user.id);
+  const refillRate=participant?officialRate*share/recoveringShare:0;
+  const refillRoom=Math.max(0,capacity-available-reserved);
+  // 按其他成员先后满额的时刻计算：目标补满前，整车需要恢复各成员实际能接收的总量。
+  const refillBudget=participant?participants.reduce((total,member)=>total+Math.min(member.gap,member.share*participant.gap/participant.share),0):0;
+  const fullSeconds=officialRate>0?refillBudget/officialRate:null;
+  // 当前来源刚好与钱包相等时仍能随时间恢复；只有最终来源容量不够才不能承诺补满。
+  const sourceCapacityRoom=Math.max(0,100-s.unallocatedV5-s.spent.v5-sharedHeld(s)-sum(s,'v5Available'));
+  const refillLimited=s.status!=='active'||s.sharedV5Debt>1e-9||s.v5Reconciliation?.status==='source_below_local'||
+    (refillRoom>1e-9&&(!refillRate||refillBudget>sourceCapacityRoom+1e-9));
+  return {enabled:true,status:s.status,member:Boolean(raw),share,autoAnlasFallback:s.autoAnlasFallback===true,
     localAnlasFallbackSpent:localFallback.fixed+localFallback.purchased,localAnlasFallbackFixedSpent:localFallback.fixed,localAnlasFallbackPurchasedSpent:localFallback.purchased,localFallbackV5Equivalent:localFallback.v5Equivalent,groupId:group?.id??null,groupName:group?.name??null,groupSize:group?.members.length??0,boundAccountId:s.boundAccountId,
-    v5Available:b?.v5Available??0,v5Capacity:100*share,v5Reserved:b?held(s,user.id,'v5'):0,
+    v5Available:available,v5Capacity:capacity,v5Reserved:reserved,
+    v5PersonalPercent:capacity>0?100*available/capacity:null,v5RefillPerDay:refillRate*86400,
+    v5BaseRefillPerDay:officialRate*share*86400,v5RecoveringShare:recoveringShare,v5RefillPolicy:'unfilled_members_v1',
+    v5FullRefillSeconds:refillRoom<=1e-9?0:refillLimited?null:fullSeconds,
+    v5RefillLimited:refillLimited,v5SharedBalanceStatus:s.v5Reconciliation?.status??'pending',
+    v5BalancePolicy:'personal_wallet_v1',
     anlasAvailable:b?.anlasAvailable??0,anlasReserved:b?held(s,user.id,'anlas'):0,
     anlasFixedAvailable:b?.anlasFixedAvailable??0,anlasPurchasedAvailable:b?.anlasPurchasedAvailable??0,
     anlasFixedReserved:b?held(s,user.id,'anlasFixed'):0,anlasPurchasedReserved:b?held(s,user.id,'anlasPurchased'):0,

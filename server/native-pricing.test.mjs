@@ -4,12 +4,11 @@ import {readFileSync} from 'node:fs';
 import {quoteNativeRequest} from './native-pricing.js';
 import {configureFairQuota, syncFairQuota, reserveFairQuota, settleFairQuota, quoteFairRequest} from './fair-quota.js';
 
-// 对照独立保存的官方报价结果；测试数据不包含官网代码和任何真实账户。
-const fixture=JSON.parse(readFileSync(new URL('./fixtures/official-image-pricing-20261007.json',import.meta.url),'utf8'));
+// 对照独立保存的官网报价结果；不包含官网代码或真实账户信息。
+const fixture=JSON.parse(readFileSync(new URL('./fixtures/official-image-pricing-20261009.json',import.meta.url),'utf8'));
 const expected=(name,args)=>{
-  const key=JSON.stringify(args);
-  const row=fixture.calls[name].find(item=>JSON.stringify(item.args)===key);
-  assert.ok(row,`官方报价样例缺失：${name}`);
+  const row=fixture.calls[name].find(item=>JSON.stringify(item.args)===JSON.stringify(args));
+  assert.ok(row,`官网报价样例缺失：${name}`);
   return row.expected;
 };
 const official={GI:(...args)=>expected('GI',args),H_:(...args)=>expected('H_',args),tY:(...args)=>expected('tY',args)};
@@ -25,7 +24,7 @@ function officialParameters(request){
 
 test('官网固定报价校准：基础付费、V5 两次取整、图生图强度和 V3 SMEA',()=>{
   let compared=0;
-  const models=['nai-diffusion-3','nai-diffusion-furry-3','nai-diffusion-4-full','nai-diffusion-4-curated-preview','nai-diffusion-4-5-full','nai-diffusion-4-5-curated','nai-diffusion-5-full'];
+  const models=['nai-diffusion-3','nai-diffusion-furry-3','nai-diffusion-4-full','nai-diffusion-4-curated-preview','nai-diffusion-4-5-full','nai-diffusion-4-5-curated','nai-diffusion-5-full','nai-diffusion-5-curated'];
   for(const model of models)for(const [width,height,steps] of [[1024,1024,29],[1024,1536,23],[1536,1536,37]])for(const strength of [1,0.01,0.3,0.7]){
     const request=input({model,width,height,steps,...(strength===1?{}:{action:'img2img',nativeParameters:{image,strength,noise:0}})});
     const expected=official.GI(officialParameters(request),opus,model);
@@ -52,13 +51,22 @@ test('官方免费判定边界：1MP、28 步，标准图生图按当前前端�
 });
 
 test('V5 用量条保留估算标记，本地 Anlas 续用与官网强制付费原函数一致',()=>{
-  for(const steps of [1,17,23,28])for(const [width,height] of [[512,512],[832,1216],[1024,1024]]){
-    const request=input({model:'nai-diffusion-5-full',steps,width,height});
+  for(const model of ['nai-diffusion-5-full','nai-diffusion-5-curated'])for(const steps of [1,17,23,28])for(const [width,height] of [[512,512],[832,1216],[1024,1024]]){
+    const request=input({model,steps,width,height});
     const normal=quoteNativeRequest(request),fallback=quoteNativeRequest(request,{forceAnlas:true});
     assert.equal(normal.resource,'v5');assert.equal(normal.estimated,true);assert.ok(normal.amount>0);
     assert.equal(fallback.resource,'anlas');assert.equal(fallback.amount,official.GI(officialParameters(request),opus,request.model,true));
   }
   assert.equal(quoteNativeRequest(input({model:'nai-diffusion-5-full'}),{forceAnlas:true}).amount,26);
+});
+
+test('5C 与 Full 标准续用为 26 点、29 步为 32 点，独立重绘不能绕过校验计费',()=>{
+  const curated=input({model:'nai-diffusion-5-curated'});
+  assert.equal(quoteNativeRequest(curated,{forceAnlas:true}).amount,26);
+  assert.equal(quoteNativeRequest({...curated,steps:29}).amount,32);
+  assert.deepEqual(quoteNativeRequest(curated),quoteNativeRequest({...curated,model:'nai-diffusion-5-full'}));
+  assert.throws(()=>quoteNativeRequest({...curated,action:'infill',nativeParameters:{image,mask:image}}),/V4.5 Curated/);
+  assert.throws(()=>quoteNativeRequest({...curated,model:'nai-diffusion-5-curated-inpainting',action:'infill',nativeParameters:{image,mask:image}}),/计价规则/);
 });
 
 test('V4 Vibe 参考数量附加取官网原函数，V3 不收 V4 编码附加费',()=>{
@@ -161,4 +169,20 @@ test('新操作经过公平账本预扣和幂等退款，成功只结算一次',
   assert.equal(precise.fairCharge.amount,5);assert.equal(balance.anlasFixedAvailable,initial-6);
   settleFairQuota(db,precise,true,now+8);settleFairQuota(db,precise,true,now+9);
   assert.equal(balance.anlasFixedAvailable,initial-6);assert.equal(db.settings.fairQuota.spent.anlas,6);
+});
+
+
+test('Medium 计价与官网固定报价结果一致：固定 14 步、18 Anlas 续用及图生图重绘强度',()=>{
+ let comparisons=0;
+ for(const model of ['nai-diffusion-5-full-medium','nai-diffusion-5-full-medium-inpainting'])for(const [width,height] of [[512,512],[832,1216],[1024,1024],[1024,1536],[1536,2048]])for(const strength of [0.01,0.5,1]){
+  const infill=model.endsWith('-inpainting');
+  const request=input({model,width,height,steps:14,...(infill?{action:'infill',nativeParameters:{image,mask:image,img2img:{strength}}}:strength<1?{action:'img2img',nativeParameters:{image,strength}}:{})});
+  const quote=quoteNativeRequest(request,{forceAnlas:true});
+  assert.equal(quote.amount,official.GI(officialParameters(request),opus,model,true),JSON.stringify({model,width,height,strength}));comparisons++;
+ }
+ assert.equal(comparisons,30);
+ const medium=input({model:'nai-diffusion-5-full-medium',steps:14}),high=input({model:'nai-diffusion-5-full'});
+ assert.equal(quoteNativeRequest(medium,{forceAnlas:true}).amount,18);assert.equal(quoteNativeRequest(high,{forceAnlas:true}).amount,26);
+ const free=quoteNativeRequest(medium);assert.equal(free.resource,'v5');assert.equal(free.estimated,true);assert.ok(Math.abs(free.amount/quoteNativeRequest(high).amount-0.58)<1e-12);
+ assert.throws(()=>quoteNativeRequest({...medium,steps:23}),/固定 14 步/);
 });

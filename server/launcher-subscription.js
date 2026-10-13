@@ -19,8 +19,8 @@ export function launcherSubscription(db,user,now=Date.now()){
   const account=rows(db.accounts).find(a=>a.id===quota.boundAccountId);
   const expires=expiration(account?.subscriptionExpiresAt);
   const active=quota.status==='active'&&account?.enabled===true&&account?.subscriptionActive===true&&Number(account?.quotaTier)===3&&expires>Math.floor(now/1000);
-  const percent=nonnegative(quota.v5Available),share=nonnegative(quota.share),seconds=nonnegative(quota.refillSecondsPerPercent);
-  const recovery=active&&share>0&&seconds>0?Math.ceil(seconds/share):0;
+  const percent=nonnegative(quota.v5Available);
+  const recovery=active&&quota.v5RefillLimited!==true&&quota.v5RefillPerDay>0?Math.ceil(86400/quota.v5RefillPerDay):0;
   return {
     tier:active?3:0,active,expiresAt:active?expires:0,
     trainingStepsLeft:{fixedTrainingStepsLeft:wholeBalance(quota.anlasFixedAvailable),purchasedTrainingSteps:wholeBalance(quota.anlasPurchasedAvailable)},

@@ -33,3 +33,14 @@ test('秒和ISO到期时间均兼容，恢复按个人份额向上取整且不�
  db.accounts[0].subscriptionExpiresAt=(NOW+86400000)/1000;const before=structuredClone(db);result=launcherSubscription(db,db.users[0],NOW+1000);assert.equal(result.active,true);assert.ok(result.usage.percent>20);assert.deepEqual(db,before);
  function synced(db){db.settings.fairQuota.snapshot.seconds=601;}
 });
+
+test('队友满额后启动器反映当前恢复速度，个人满额时停止恢复',()=>{
+ const db=fixture(),s=db.settings.fairQuota;
+ for(const id of ['b','c','d'])s.balances[id].v5Available=25;
+ s.snapshot.v5=95;db.accounts[0].v5UsagePercent=95;
+ let result=launcherSubscription(db,db.users[0],NOW);
+ assert.equal(result.usage.percent,20);assert.equal(result.usage.timeUntilNextPercent,600);
+ s.balances.a.v5Available=25;s.snapshot.v5=100;db.accounts[0].v5UsagePercent=100;
+ result=launcherSubscription(db,db.users[0],NOW);
+ assert.equal(result.usage.percent,25);assert.equal(result.usage.timeUntilNextPercent,0);
+});

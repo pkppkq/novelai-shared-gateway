@@ -2,9 +2,23 @@ import net from 'node:net';
 import tls from 'node:tls';
 import zlib from 'node:zlib';
 import { sizeMap } from '../public/generation-pricing.js';
+import { isV5MediumModel, V5_MEDIUM_STEPS } from '../public/v5-medium.js';
+import { applyV5MediumParameters, mediumNegativePrompt } from './v5-medium.js';
 
 export const MAX_STEPS = 50;
 export const DIRECT_URL_MAX_STEPS = 28;
+
+async function fetchWithGenerationTiming(url, init, proxyUrl, options) {
+  // 发起调用、收到响应头、读完响应体分别计时，不记录用户请求内容。
+  options.onUpstreamTiming?.({ upstreamStartedAt: new Date().toISOString() });
+  const response = await novelAiFetch(url, init, proxyUrl);
+  options.onUpstreamTiming?.({ upstreamHeadersAt: new Date().toISOString(), upstreamHttpStatus: response.status });
+  return response;
+}
+
+function finishGenerationTiming(options) {
+  options.onUpstreamTiming?.({ upstreamCompletedAt: new Date().toISOString() });
+}
 
 export function normalizeNovelAiRequest(input, settings, options = {}) {
   const defaults = settings.defaults || {};
@@ -14,22 +28,24 @@ export function normalizeNovelAiRequest(input, settings, options = {}) {
   const tag = normalizePromptText(input.tag || input.prompt || '').trim();
   const artist = normalizePromptText(input.artist ?? settings.defaultArtist ?? '').trim();
   const prompt = [artist, tag].filter(Boolean).join('\n');
-  const requestedSteps = input.steps ?? defaults.steps;
+  const model = String(input.model || settings.defaultModel || 'nai-diffusion-4-5-full');
+  const medium = isV5MediumModel(model);
+  const requestedSteps = medium ? V5_MEDIUM_STEPS : input.steps ?? defaults.steps;
 
   return {
     tag,
     prompt,
     artist,
-    model: String(input.model || settings.defaultModel || 'nai-diffusion-4-5-full'),
-    negative: normalizePromptText(input.negative ?? settings.defaultNegative ?? ''),
+    model,
+    negative: medium ? mediumNegativePrompt(prompt) : normalizePromptText(input.negative ?? settings.defaultNegative ?? ''),
     width: clampNumber(input.width ?? mappedSize.width ?? defaults.width, 128, 2048),
     height: clampNumber(input.height ?? mappedSize.height ?? defaults.height, 128, 2048),
     size: sizeName,
     requestedSteps: requestedSteps === undefined || requestedSteps === '' ? undefined : Number(requestedSteps),
     steps: clampNumber(requestedSteps, 1, maxSteps),
-    scale: clampNumber(input.scale ?? defaults.scale, 1, 20),
-    cfg: clampNumber(input.cfg ?? defaults.cfg, 0, 1),
-    sampler: String(input.sampler || defaults.sampler || 'k_dpmpp_2m_sde'),
+    scale: clampNumber(input.scale ?? defaults.scale, medium ? 0 : 1, medium ? 10 : 20),
+    cfg: medium ? 0 : clampNumber(input.cfg ?? defaults.cfg, 0, 1),
+    sampler: medium ? 'k_euler_ancestral' : String(input.sampler || defaults.sampler || 'k_dpmpp_2m_sde'),
     noiseSchedule: String(input.noise_schedule || input.noiseSchedule || defaults.noiseSchedule || 'karras'),
     seed: input.seed === undefined || input.seed === '' ? Math.floor(Math.random() * 2 ** 31) : Number(input.seed),
     cost: input.cost === undefined || input.cost === '' ? undefined : Number(input.cost)
@@ -68,7 +84,7 @@ export async function generateNovelAiImage(request, account, env, options = {}) 
 
   const baseUrl = (env.NOVELAI_API_URL || 'https://image.novelai.net').replace(/\/$/, '');
   const correlationId = novelAiCorrelationId();
-  const response = await novelAiFetch(`${baseUrl}/ai/generate-image`, {
+  const response = await fetchWithGenerationTiming(`${baseUrl}/ai/generate-image`, {
     method: 'POST',
     signal: options.signal,
     headers: {
@@ -88,10 +104,11 @@ export async function generateNovelAiImage(request, account, env, options = {}) 
       parameters: buildNovelAiParameters(request),
       use_new_shared_trial: true
     })
-  }, accountProxyUrl(account));
+  }, accountProxyUrl(account), options);
 
   const contentType = response.headers.get('content-type') || '';
   const buffer = Buffer.from(await response.arrayBuffer());
+  finishGenerationTiming(options);
 
   if (!response.ok) {
     const text = buffer.toString('utf8').slice(0, 1000);
@@ -124,7 +141,7 @@ async function generateNovelAiImageOperation(request, account, env, options = {}
   // 仅使用管理员配置的上游地址；请求里的图片和缓存字段永远不作为下载地址。
   const baseUrl = (env.NOVELAI_API_URL || 'https://image.novelai.net').replace(/\/$/, '');
   const correlationId = novelAiCorrelationId();
-  const response = await novelAiFetch(`${baseUrl}/ai/${request.operation}`, {
+  const response = await fetchWithGenerationTiming(`${baseUrl}/ai/${request.operation}`, {
     method: 'POST',
     signal: options.signal,
     headers: {
@@ -139,9 +156,10 @@ async function generateNovelAiImageOperation(request, account, env, options = {}
     },
     // 官网仍支持 JSON 传输；入口把旧 JSON 和新版 multipart 统一为已核价参数。
     body: JSON.stringify(payload)
-  }, accountProxyUrl(account));
+  }, accountProxyUrl(account), options);
   const contentType = response.headers.get('content-type') || '';
   const buffer = Buffer.from(await response.arrayBuffer());
+  finishGenerationTiming(options);
   if (!response.ok) {
     const text = buffer.toString('utf8').slice(0, 1000);
     throw Object.assign(new Error(`NovelAI returned ${response.status} (cid=${correlationId}): ${text}`), { upstreamStatus: response.status });
@@ -171,7 +189,7 @@ async function generateNovelAiImageStream(request, account, env, options = {}) {
   const parameters = buildNovelAiParameters(request);
   parameters.stream = 'msgpack';
 
-  const response = await novelAiFetch(`${baseUrl}/ai/generate-image-stream`, {
+  const response = await fetchWithGenerationTiming(`${baseUrl}/ai/generate-image-stream`, {
     method: 'POST',
     signal: options.signal,
     headers: {
@@ -191,11 +209,12 @@ async function generateNovelAiImageStream(request, account, env, options = {}) {
       parameters,
       use_new_shared_trial: true
     })
-  }, accountProxyUrl(account));
+  }, accountProxyUrl(account), options);
 
   const contentType = response.headers.get('content-type') || '';
   if (!response.ok || contentType.includes('application/json')) {
     const buffer = Buffer.from(await response.arrayBuffer());
+    finishGenerationTiming(options);
     if (!response.ok) {
       const text = buffer.toString('utf8').slice(0, 1000);
       throw Object.assign(new Error(`NovelAI returned ${response.status} (cid=${correlationId}): ${text}`), { upstreamStatus: response.status });
@@ -207,13 +226,16 @@ async function generateNovelAiImageStream(request, account, env, options = {}) {
   }
 
   if (response.body) {
-    return extractFinalImageFromNovelAiReadableStream(response.body, {
+    const image = await extractFinalImageFromNovelAiReadableStream(response.body, {
       request,
       onProgress: options.onProgress
     });
+    finishGenerationTiming(options);
+    return image;
   }
 
   const buffer = Buffer.from(await response.arrayBuffer());
+  finishGenerationTiming(options);
   return extractFinalImageFromNovelAiStream(buffer, {
     request,
     onProgress: options.onProgress
@@ -257,43 +279,47 @@ export async function fetchNovelAiAccountQuota(token, env = {}, options = {}) {
   );
   const values = [fixed, purchased].filter((value) => value !== null);
   const usage = subscription.usage || payload.usage || {};
+  const tier = subscription.tier ?? subscription.subscriptionTier ?? payload.tier ?? null;
 
   // 新试用接口独立于订阅余额；查询失败时保持未知，不将旧字段当作零额度。
   let trialRemainingImages = null;
   let trialUsedImages = null;
   let trialEligible = false;
   let trialStatusKnown = false;
-  try {
-    const trialResponse = await novelAiFetch(`${baseUrl}/ai/trial-status`, {
-      method: 'GET',
-      signal: options.signal,
-      headers: {
-        authorization: `Bearer ${token}`,
-        accept: 'application/json',
-        origin: 'https://novelai.net',
-        referer: 'https://novelai.net/',
-        'user-agent': 'Mozilla/5.0 Nai2API/1.0'
+  // 有效付费订阅直接采用订阅结果，避免无关试用查询拖住余额刷新。
+  if (!(subscription.active === true && Number(tier) > 0)) {
+    try {
+      const trialResponse = await novelAiFetch(`${baseUrl}/ai/trial-status`, {
+        method: 'GET',
+        signal: options.signal,
+        headers: {
+          authorization: `Bearer ${token}`,
+          accept: 'application/json',
+          origin: 'https://novelai.net',
+          referer: 'https://novelai.net/',
+          'user-agent': 'Mozilla/5.0 Nai2API/1.0'
+        }
+      }, normalizeSocksProxyUrl(options.proxyUrl || ''));
+      const trialText = await trialResponse.text();
+      if (trialResponse.ok) {
+        const trial = JSON.parse(trialText);
+        const remaining = trial?.remaining_image_actions;
+        const used = trial?.used_image_actions;
+        trialRemainingImages = Number.isSafeInteger(remaining) && remaining >= 0 ? remaining : null;
+        trialUsedImages = Number.isSafeInteger(used) && used >= 0 ? used : null;
+        trialEligible = trial?.eligible_for_image_gens === true;
+        trialStatusKnown = trialRemainingImages !== null && typeof trial?.eligible_for_image_gens === 'boolean';
       }
-    }, normalizeSocksProxyUrl(options.proxyUrl || ''));
-    const trialText = await trialResponse.text();
-    if (trialResponse.ok) {
-      const trial = JSON.parse(trialText);
-      const remaining = trial?.remaining_image_actions;
-      const used = trial?.used_image_actions;
-      trialRemainingImages = Number.isSafeInteger(remaining) && remaining >= 0 ? remaining : null;
-      trialUsedImages = Number.isSafeInteger(used) && used >= 0 ? used : null;
-      trialEligible = trial?.eligible_for_image_gens === true;
-      trialStatusKnown = trialRemainingImages !== null && typeof trial?.eligible_for_image_gens === 'boolean';
+    } catch {
+      // 试用接口不可用时仍返回已取得的订阅结果，也不记录可能包含凭据的响应。
     }
-  } catch {
-    // 试用接口不可用时仍返回已取得的订阅结果，也不记录可能包含凭据的响应。
   }
 
   return {
     points: values.length ? values.reduce((sum, value) => sum + value, 0) : null,
     fixed,
     purchased,
-    tier: subscription.tier ?? subscription.subscriptionTier ?? payload.tier ?? null,
+    tier,
     subscriptionActive: subscription.active === true,
     subscriptionExpiresAt: subscription.expiresAt ?? null,
     v5UsagePercent: numberOrNull(usage.percent),
@@ -836,11 +862,13 @@ function buildNovelAiParameters(request) {
   if (request.nativeParameters) {
     const parameters = structuredClone(request.nativeParameters);
     delete parameters.stream;
-    return { ...parameters, width: request.width, height: request.height, steps: request.steps,
+    const actual = { ...parameters, width: request.width, height: request.height, steps: request.steps,
       seed: request.seed, n_samples: 1 };
+    return isV5MediumModel(request.model) ? applyV5MediumParameters(actual, request.prompt) : actual;
   }
   if (isModernImageModel(request.model)) {
-    return buildV4Parameters(request);
+    const parameters = buildV4Parameters(request);
+    return isV5MediumModel(request.model) ? applyV5MediumParameters(parameters, request.prompt) : parameters;
   }
 
   return {

@@ -29,6 +29,12 @@ test('恢复按份额到账，新快照不会重复计入恢复',()=>{
  Object.assign(db.accounts[0],{quotaCheckedAt:NOW+300000,v5UsagePercent:80.5});syncFairQuota(db,NOW+300000);
  assert.equal(db.settings.fairQuota.balances.a.v5Available,20.125);syncFairQuota(db,NOW+300000);assert.equal(db.settings.fairQuota.balances.a.v5Available,20.125);
 });
+test('更换来源保留的未分配V5不会被后续快照重新发给本期',()=>{
+ const db=fixture(10),s=db.settings.fairQuota;
+ s.unallocatedV5=90;s.snapshot.v5=100;db.accounts[0].v5UsagePercent=100;
+ for(const tick of [NOW+1000,NOW+2000]){db.accounts[0].quotaCheckedAt=tick;syncFairQuota(db,tick);assert.ok(Math.abs(Object.values(s.balances).reduce((sum,b)=>sum+b.v5Available,0)-10)<1e-9);}
+});
+
 test('续费只按实际新增计入一次，消费及充值校准',()=>{
  const db=fixture();const j=job('paid',{...request,width:1536});const c=reserveFairQuota(db,{id:'a'},j,db.accounts[0],NOW);
  assert.equal(c.resource,'anlas');settleFairQuota(db,j,true,NOW+10);
@@ -41,9 +47,9 @@ test('有并发未结清时推迟校准，较早快照不当作充值',()=>{
  Object.assign(db.accounts[0],{quotaFixed:11000,quotaCheckedAt:NOW+10});syncFairQuota(db,NOW+10);assert.equal(db.settings.fairQuota.balances.b.anlasAvailable,2500);
  settleFairQuota(db,j,true,NOW+20);syncFairQuota(db,NOW+20);assert.equal(db.settings.fairQuota.balances.b.anlasAvailable,2500);
 });
-test('官方余额减少保守缩减，无订阅与过期拒绝',()=>{
+test('官方V5减少保留个人余额，Anlas仍按原规则对账，无订阅与过期拒绝',()=>{
  const db=fixture();Object.assign(db.accounts[0],{quotaFixed:8000,v5UsagePercent:40,quotaCheckedAt:NOW+1});syncFairQuota(db,NOW+1);
- assert.ok(Math.abs(db.settings.fairQuota.balances.a.v5Available-10)<1e-8);assert.equal(db.settings.fairQuota.balances.a.anlasAvailable,2000);
+ assert.ok(db.settings.fairQuota.balances.a.v5Available>=20);assert.equal(db.settings.fairQuota.balances.a.anlasAvailable,2000);
  assert.throws(()=>reserveFairQuota(db,{id:'a'},job('stale'),db.accounts[0],NOW+700000),/stale/);
  db.accounts[0].subscriptionActive=false;assert.throws(()=>reserveFairQuota(db,{id:'a'},job('off'),db.accounts[0],NOW+2),/inactive/);
 });
@@ -118,7 +124,7 @@ test('新增叶子仅改变未来恢复与充值权重，旧余额超新容量�
  const db=enableUsers(fixture(),['e']);configureFairGroups(db,grouped(['e']),{now:NOW});
  assert.equal(db.settings.fairQuota.balances.a.v5Available,20);assert.equal(db.settings.fairQuota.balances.e.v5Available,0);
  assert.equal(fairQuotaSummary(db,{id:'a'},NOW).v5Capacity,12.5);assert.equal(fairQuotaSummary(db,{id:'e'},NOW).share,.125);
- syncFairQuota(db,NOW+300000);assert.equal(db.settings.fairQuota.balances.a.v5Available,20);assert.equal(db.settings.fairQuota.balances.e.v5Available,.0625);
+ syncFairQuota(db,NOW+300000);assert.equal(db.settings.fairQuota.balances.a.v5Available,20);assert.ok(Math.abs(db.settings.fairQuota.balances.e.v5Available-1/14)<1e-9);
  Object.assign(db.accounts[0],{quotaFixed:10800,quotaPurchased:800,quotaCheckedAt:NOW+300000});syncFairQuota(db,NOW+300000);
  assert.equal(db.settings.fairQuota.balances.a.anlasFixedAvailable,2600);assert.equal(db.settings.fairQuota.balances.e.anlasFixedAvailable,100);
  assert.equal(db.settings.fairQuota.balances.b.anlasFixedAvailable,2700);assert.equal(db.settings.fairQuota.balances.e.anlasPurchasedAvailable,100);
@@ -196,14 +202,14 @@ test('整数容差不妨碍按时间恢复，且 Anlas 精确消费与充值独�
  Object.assign(db.accounts[0],{quotaCheckedAt:NOW+300003,quotaFixed:10400-quote.amount});syncFairQuota(db,NOW+300003);
  assert.equal(db.settings.fairQuota.balances.a.anlasFixedAvailable,2600-quote.amount);assert.equal(db.settings.fairQuota.balances.b.anlasFixedAvailable,2600);
 });
-test('大于一百分点的偏差才校准，正向只补官方下界，负向保守扣减',()=>{
+test('超过显示精度的差额只记录，正负向快照都不能代替个人消费或恢复',()=>{
  const db=fixture(80);db.accounts[0].v5UsageTimeUntilNextPercent=0;db.accounts[0].quotaCheckedAt=NOW+1;syncFairQuota(db,NOW+1);
  Object.assign(db.accounts[0],{quotaCheckedAt:NOW+2,v5UsagePercent:90});syncFairQuota(db,NOW+2);
- assert.ok(Math.abs(Object.values(db.settings.fairQuota.balances).reduce((n,b)=>n+b.v5Available,0)-89)<1e-9);
+ assert.ok(Math.abs(Object.values(db.settings.fairQuota.balances).reduce((n,b)=>n+b.v5Available,0)-80)<1e-5);
  Object.assign(db.accounts[0],{quotaCheckedAt:NOW+3,v5UsagePercent:90});syncFairQuota(db,NOW+3);
- assert.ok(Math.abs(Object.values(db.settings.fairQuota.balances).reduce((n,b)=>n+b.v5Available,0)-89)<1e-9);
+ assert.ok(Math.abs(Object.values(db.settings.fairQuota.balances).reduce((n,b)=>n+b.v5Available,0)-80)<1e-5);
  Object.assign(db.accounts[0],{quotaCheckedAt:NOW+4,v5UsagePercent:50});syncFairQuota(db,NOW+4);
- assert.ok(Math.abs(Object.values(db.settings.fairQuota.balances).reduce((n,b)=>n+b.v5Available,0)-50)<1e-9);
+ assert.ok(Math.abs(Object.values(db.settings.fairQuota.balances).reduce((n,b)=>n+b.v5Available,0)-80)<1e-5);
 });
 
 test('同组两个子成员独立消费与退款，其他组不承担消费，恢复按最终份额',()=>{
@@ -294,7 +300,7 @@ test('恢复先偿还共享负债，普通V5调用遵守负债边界，公共条
  const db=fallbackFixture(),s=db.settings.fairQuota,j=job('debt');const c=reserveFairQuota(db,{id:'a'},j,db.accounts[0],NOW);settleFairQuota(db,j,true,NOW+1);
  Object.assign(db.accounts[0],{quotaCheckedAt:NOW+2,v5UsagePercent:75-c.v5Equivalent,v5UsageTimeUntilNextPercent:600});syncFairQuota(db,NOW+2);
  syncFairQuota(db,NOW+60002);assert.equal(s.sharedV5Debt,0);
- assert.ok(Math.abs(s.balances.a.v5Available-(.1-c.v5Equivalent)/4)<1e-9);
+ assert.ok(Math.abs(s.balances.a.v5Available-(.1-c.v5Equivalent))<1e-9);
  const blocked=fallbackFixture();blocked.settings.fairQuota.sharedV5Debt=75;
  assert.throws(()=>reserveFairQuota(blocked,{id:'b'},job('normal-blocked'),blocked.accounts[0],NOW),/公共额度/);
  const depleted=fixture(0);depleted.settings.fairQuota.autoAnlasFallback=true;depleted.accounts[0].v5UsageIsNegative=true;
@@ -305,7 +311,7 @@ test('已停用成员保留原组与份额，允许管理其他组但不允许�
  const db=enableUsers(fixture(),['e']);db.users.find(u=>u.id==='a').enabled=false;
  const groups=grouped();groups[1].members.push('e');configureFairGroups(db,groups,{now:NOW});
  assert.equal(db.settings.fairQuota.balances.a.v5Available,20);assert.equal(fairQuotaSummary(db,{id:'a'},NOW).share,.25);
- syncFairQuota(db,NOW+300000);assert.equal(db.settings.fairQuota.balances.a.v5Available,20.125);
+ syncFairQuota(db,NOW+300000);assert.ok(Math.abs(db.settings.fairQuota.balances.a.v5Available-(20+1/7))<1e-9);
  const moved=structuredClone(groups);moved[0].members=['e'];moved[1].members=['b','a'];assert.throws(()=>configureFairGroups(db,moved,{now:NOW+300000}),/停用成员只能保留/);
  const existing=structuredClone(db.settings.fairQuota);db.users.push({id:'disabled-new',enabled:false});const extra=structuredClone(groups);extra[1].members.push('disabled-new');
  assert.throws(()=>configureFairGroups(db,extra,{now:NOW+300000}),/停用成员只能保留/);assert.deepEqual(db.settings.fairQuota,existing);
@@ -320,7 +326,7 @@ test('组比例和成员权重控制容量、恢复及充值；重分仅限组�
  assert.equal(db.settings.fairQuota.balances.a.anlasFixedAvailable,1875);assert.equal(db.settings.fairQuota.balances.e.anlasFixedAvailable,625);assert.equal(db.settings.fairQuota.balances.b.anlasFixedAvailable,2500);
  Object.assign(db.accounts[0],{quotaFixed:11000,quotaCheckedAt:NOW+1000,v5UsagePercent:80});syncFairQuota(db,NOW+1000);
  assert.equal(db.settings.fairQuota.balances.a.anlasFixedAvailable,2175);assert.equal(db.settings.fairQuota.balances.e.anlasFixedAvailable,725);
- assert.ok(Math.abs(db.settings.fairQuota.balances.a.v5Available-15-.3/600)<1e-8);
+ assert.ok(Math.abs(db.settings.fairQuota.balances.a.v5Available-15-.3/.7/600)<1e-8);
  const saved=structuredClone(db);groups[0].memberWeights.a=-1;assert.throws(()=>configureFairGroups(db,groups,{now:NOW}),/权重/);assert.deepEqual(db,saved);
 });
 
@@ -423,4 +429,196 @@ test('删除零份额成员到已有成员不改变任何其他份额',()=>{
  const result=manageFairMember(db,{action:'delete-member',userId:'a',transferToUserId:'b',expectedConfigVersion:2},NOW);assert.equal(fairQuotaSummary(db,{id:'b'},NOW).share,.5);assert.equal(fairQuotaSummary(db,{id:'c'},NOW).share,.3);assert.equal(fairQuotaSummary(db,{id:'d'},NOW).share,.2);assert.ok(result.shareChanges.every(c=>c.beforeShare===c.afterShare));assert.equal(db.settings.fairQuota.balances.b.anlasFixedAvailable,5000);
 });
 
+
+test('官方下降的聚合差额不扣闲置成员：25个百分点不能被队友对账变成24.7',()=>{
+ const db=fixture(100),s=db.settings.fairQuota;
+ db.accounts[0].v5UsageTimeUntilNextPercent=0;db.accounts[0].quotaCheckedAt=NOW+1;syncFairQuota(db,NOW+1);
+ for(let i=0;i<12;i++){
+   const j=job(`other-consumer-${i}`),at=NOW+2+i*3;
+   reserveFairQuota(db,{id:'a'},j,db.accounts[0],at);settleFairQuota(db,j,true,at+1);
+ }
+ const before=structuredClone(s.balances);
+ Object.assign(db.accounts[0],{quotaCheckedAt:NOW+50,v5UsagePercent:98});syncFairQuota(db,NOW+50);
+ assert.deepEqual(s.balances,before);
+ assert.equal(s.balances.b.v5Available,25);
+ assert.equal(s.v5Reconciliation.status,'source_below_local');
+ assert.equal(s.v5Reconciliation.personalDelta,0);
+ assert.ok(s.v5ReconciliationHistory.length>0);
+});
+
+test('官方正向跳变不当作个人恢复发放，普通时间恢复仍按份额',()=>{
+ const db=fixture(80),s=db.settings.fairQuota;
+ Object.assign(db.accounts[0],{quotaCheckedAt:NOW+1000,v5UsagePercent:90});syncFairQuota(db,NOW+1000);
+ assert.ok(Math.abs(s.balances.a.v5Available-(20+1/600/4))<1e-9);
+ assert.equal(s.v5Reconciliation.status,'source_above_local');
+ assert.equal(s.v5Reconciliation.personalDelta,0);
+ const amount=s.balances.a.v5Available;syncFairQuota(db,NOW+1000);assert.equal(s.balances.a.v5Available,amount);
+});
+
+test('保留个人钱包不会放开官方耗尽或并发余量限制',()=>{
+ const db=fixture(100),s=db.settings.fairQuota;
+ Object.assign(db.accounts[0],{quotaCheckedAt:NOW+1,v5UsagePercent:0});syncFairQuota(db,NOW+1);
+ assert.equal(s.balances.b.v5Available,25);
+ const before=structuredClone(s.balances);
+ assert.throws(()=>reserveFairQuota(db,{id:'b'},job('exhausted-source'),db.accounts[0],NOW+1),/公共额度不足/);
+ assert.deepEqual(s.balances,before);
+ const legacy=job('free-source',{model:'nai-diffusion-4-5-full',width:1024,height:1024,steps:23});
+ assert.equal(reserveFairQuota(db,{id:'b'},legacy,db.accounts[0],NOW+1).resource,'free');
+});
+
+test('对账差额跨重启保留且重复快照不重写个人余额或重复审计',()=>{
+ let db=fixture(100);
+ Object.assign(db.accounts[0],{quotaCheckedAt:NOW+1,v5UsagePercent:96});syncFairQuota(db,NOW+1);
+ const before=structuredClone(db.settings.fairQuota.balances),history=structuredClone(db.settings.fairQuota.v5ReconciliationHistory);
+ db=JSON.parse(JSON.stringify(db));
+ syncFairQuota(db,NOW+1);
+ assert.deepEqual(db.settings.fairQuota.balances,before);
+ assert.deepEqual(db.settings.fairQuota.v5ReconciliationHistory,history);
+ Object.assign(db.accounts[0],{quotaCheckedAt:NOW+2});syncFairQuota(db,NOW+2);
+ assert.deepEqual(db.settings.fairQuota.balances,before);
+ assert.equal(db.settings.fairQuota.v5ReconciliationHistory.length,history.length);
+});
+
+test('长时间离线仅在有效快照窗口恢复，不按最新余额跳变补发未知时段',()=>{
+ const db=fixture(80),s=db.settings.fairQuota;
+ Object.assign(db.accounts[0],{quotaCheckedAt:NOW+86400000,v5UsagePercent:100});syncFairQuota(db,NOW+86400000);
+ assert.equal(s.balances.a.v5Available,20.25);
+ assert.equal(s.status,'active');
+ syncFairQuota(db,NOW+86400000+300000);assert.equal(s.balances.a.v5Available,20.375);
+});
+
+test('个人额度摘要提供容量占比和恢复速率，不暴露其他成员的钱包或同步历史',()=>{
+ const db=fixture(100),summary=fairQuotaSummary(db,{id:'b'},NOW);
+ assert.equal(summary.v5Capacity,25);assert.equal(summary.v5PersonalPercent,100);
+ assert.equal(summary.v5RefillPerDay,0);assert.equal(summary.v5BaseRefillPerDay,36);assert.equal(summary.v5RefillLimited,false);assert.equal(summary.v5FullRefillSeconds,0);
+ assert.equal(Object.hasOwn(summary,'balances'),false);
+ assert.equal(Object.hasOwn(summary,'v5ReconciliationHistory'),false);
+});
+
+
+// 下面的快照均为内存模拟，不连接官方，也不读取线上账户。
+const nearQuota=(actual,expected)=>assert.ok(Math.abs(actual-expected)<1e-8,`${actual} != ${expected}`);
+function recoveryFixture(available=[10,25,25,25],shares=[.25,.25,.25,.25],seconds=60) {
+ const db=enableUsers(fixture(100));
+ configureFairGroups(db,db.settings.fairQuota.groups.map((group,index)=>({...group,share:shares[index]})),{now:NOW});
+ const s=db.settings.fairQuota;
+ members.forEach((id,index)=>s.balances[id].v5Available=available[index]);
+ const total=available.reduce((sum,value)=>sum+value,0);
+ Object.assign(s.snapshot,{v5:total,seconds});Object.assign(db.accounts[0],{v5UsagePercent:total,v5UsageTimeUntilNextPercent:seconds});
+ return db;
+}
+function advanceRecovery(db,milliseconds,step=60000) {
+ const s=db.settings.fairQuota,start=s.lastRefillAt,source=s.snapshot.v5,seconds=s.snapshot.seconds;
+ for(let elapsed=Math.min(step,milliseconds);elapsed<=milliseconds;elapsed=Math.min(milliseconds,elapsed+step)) {
+  Object.assign(db.accounts[0],{quotaCheckedAt:start+elapsed,v5UsagePercent:Math.min(100,source+elapsed/1000/seconds)});
+  syncFairQuota(db,start+elapsed);
+  if(elapsed===milliseconds)break;
+ }
+}
+
+test('复现四人车官方回满：只有A缺15点时全部恢复给A，其余钱包不变',()=>{
+ const db=recoveryFixture([10,25,25,25],undefined,7888),s=db.settings.fairQuota;
+ const untouched=structuredClone(s.balances.b),anlas=members.map(id=>s.balances[id].anlasAvailable);
+ advanceRecovery(db,15*7888*1000);
+ assert.equal(db.accounts[0].v5UsagePercent,100);
+ for(const id of members)nearQuota(s.balances[id].v5Available,25);
+ assert.deepEqual(s.balances.b,untouched);assert.deepEqual(members.map(id=>s.balances[id].anlasAvailable),anlas);
+});
+
+test('仅未满额成员按原相对份额恢复，零份额与满额不参与',()=>{
+ const db=recoveryFixture([40,20,20,0],[.5,.3,.2,0]),s=db.settings.fairQuota;
+ advanceRecovery(db,300000);
+ nearQuota(s.balances.a.v5Available,43.125);nearQuota(s.balances.b.v5Available,21.875);
+ assert.equal(s.balances.c.v5Available,20);assert.equal(s.balances.d.v5Available,0);
+ nearQuota(members.reduce((sum,id)=>sum+s.balances[id].v5Available,0),85);
+});
+
+test('同次恢复有人先满额时剩余继续分配，拆分同步不会改变结果',()=>{
+ const once=recoveryFixture([24.8,10,25,25]),split=structuredClone(once);
+ advanceRecovery(once,60000);advanceRecovery(split,60000,1000);
+ nearQuota(once.settings.fairQuota.balances.a.v5Available,25);
+ nearQuota(once.settings.fairQuota.balances.b.v5Available,10.8);
+ for(const id of members)nearQuota(once.settings.fairQuota.balances[id].v5Available,split.settings.fairQuota.balances[id].v5Available);
+});
+
+test('恢复与在途预留共同受容量约束，失败幂等退款不超过个人上限',()=>{
+ const db=recoveryFixture([24.98,24,25,25]),s=db.settings.fairQuota,j=job('recovery-reserved');
+ const charge=reserveFairQuota(db,{id:'a'},j,db.accounts[0],NOW);
+ advanceRecovery(db,60000);
+ nearQuota(s.balances.a.v5Available+charge.amount,25);nearQuota(s.balances.b.v5Available,24.98);
+ settleFairQuota(db,j,false,NOW+60000);settleFairQuota(db,j,false,NOW+60001);
+ nearQuota(s.balances.a.v5Available,25);nearQuota(members.reduce((sum,id)=>sum+s.balances[id].v5Available,0),99.98);
+});
+
+test('新规则不从单次官方100跳变补满历史缺口，也不重复发放同一时段',()=>{
+ const db=recoveryFixture(),s=db.settings.fairQuota;
+ Object.assign(db.accounts[0],{quotaCheckedAt:NOW+1,v5UsagePercent:100});syncFairQuota(db,NOW+1);
+ nearQuota(s.balances.a.v5Available,10+1/60000);
+ assert.equal(s.v5Reconciliation.personalDelta,0);assert.equal(s.v5Reconciliation.status,'source_above_local');
+ const before=structuredClone(s.balances);syncFairQuota(db,NOW+1);assert.deepEqual(s.balances,before);
+});
+
+test('恢复仍先偿还共享用量，并遵守未分配来源容量和过期快照限制',()=>{
+ const debt=recoveryFixture([0,25,25,25]),s=debt.settings.fairQuota;s.sharedV5Debt=.4;
+ advanceRecovery(debt,60000);nearQuota(s.sharedV5Debt,0);nearQuota(s.balances.a.v5Available,.6);
+ const blocked=recoveryFixture([0,25,25,25]),state=blocked.settings.fairQuota;
+ state.unallocatedV5=25;state.snapshot.v5=100;blocked.accounts[0].v5UsagePercent=100;
+ advanceRecovery(blocked,60000);assert.equal(state.balances.a.v5Available,0);
+ const summary=fairQuotaSummary(blocked,{id:'a'},NOW+60000);assert.equal(summary.v5RefillLimited,true);assert.equal(summary.v5FullRefillSeconds,null);
+ const stale=recoveryFixture();syncFairQuota(stale,NOW+600001);assert.equal(stale.settings.fairQuota.balances.a.v5Available,10);
+});
+
+test('满额期间不存恢复量，重新消费后只恢复消费后的有效时段',()=>{
+ const db=recoveryFixture([24.9,24.9,24.9,24.9]),s=db.settings.fairQuota;
+ advanceRecovery(db,180000);
+ for(const id of members)nearQuota(s.balances[id].v5Available,25);
+ const j=job('new-consumption'),at=NOW+180000,c=reserveFairQuota(db,{id:'a'},j,db.accounts[0],at);
+ settleFairQuota(db,j,true,at);syncFairQuota(db,at);
+ nearQuota(s.balances.a.v5Available,25-c.amount);
+ Object.assign(db.accounts[0],{quotaCheckedAt:at+1,v5UsagePercent:100-c.amount});syncFairQuota(db,at+1);
+ syncFairQuota(db,at+1001);nearQuota(s.balances.a.v5Available,25-c.amount+1/60);
+});
+
+test('恢复摘要提供当前速率与基准速率，预计时间考虑队友提前补满',()=>{
+ const db=recoveryFixture([10,24.9,25,25]);
+ const before=fairQuotaSummary(db,{id:'a'},NOW);
+ nearQuota(before.v5BaseRefillPerDay,360);nearQuota(before.v5RefillPerDay,720);
+ assert.equal(before.v5RecoveringShare,.5);assert.equal(before.v5RefillPolicy,'unfilled_members_v1');
+ assert.equal(before.v5RefillLimited,false);nearQuota(before.v5FullRefillSeconds,15.1*60);
+ advanceRecovery(db,60000);
+ const after=fairQuotaSummary(db,{id:'a'},NOW+60000),full=fairQuotaSummary(db,{id:'b'},NOW+60000);
+ nearQuota(after.v5RefillPerDay,1440);nearQuota(after.v5FullRefillSeconds,14.1*60);
+ assert.equal(full.v5RefillPerDay,0);assert.equal(full.v5FullRefillSeconds,0);assert.equal(full.v5RefillLimited,false);
+ const equal=recoveryFixture([20,20,20,20],undefined,600),summary=fairQuotaSummary(equal,{id:'a'},NOW);
+ assert.equal(summary.v5RefillLimited,false);nearQuota(summary.v5FullRefillSeconds,20*600);
+});
+
+test('原已满额成员再次使用后自动回到恢复队列，份额与已有余额不改',()=>{
+ const db=recoveryFixture(),s=db.settings.fairQuota,before=structuredClone(s.groups);
+ assert.equal(fairQuotaSummary(db,{id:'a'},NOW).v5RefillPerDay,1440);
+ const j=job('returning-member'),c=reserveFairQuota(db,{id:'b'},j,db.accounts[0],NOW);
+ settleFairQuota(db,j,true,NOW);
+ assert.equal(fairQuotaSummary(db,{id:'a'},NOW).v5RefillPerDay,720);
+ assert.equal(fairQuotaSummary(db,{id:'b'},NOW).v5RefillPerDay,720);
+ assert.equal(s.balances.a.v5Available,10);nearQuota(s.balances.b.v5Available,25-c.amount);
+ assert.deepEqual(s.groups,before);
+});
+
+test('不同权重和剩余容量下守恒、不超上限，批次大小不影响最终分配',()=>{
+ let seed=74193;const random=()=>{seed=(1664525*seed+1013904223)>>>0;return seed/4294967296;};
+ for(let scenario=0;scenario<32;scenario++) {
+  const weights=members.map(()=>1+random()*9),total=weights.reduce((sum,value)=>sum+value,0),shares=weights.map(value=>value/total);
+  const available=shares.map(share=>100*share*(random()<.3?1:random()));
+  const once=recoveryFixture(available,shares),split=structuredClone(once),before=available.reduce((sum,value)=>sum+value,0);
+  advanceRecovery(once,600000,600000);advanceRecovery(split,600000,6000);
+  let after=0,ratio=null;
+  members.forEach((id,index)=>{
+   const balance=once.settings.fairQuota.balances[id].v5Available,capacity=100*shares[index];after+=balance;
+   assert.ok(balance>=available[index]-1e-9&&balance<=capacity+1e-9);
+   nearQuota(balance,split.settings.fairQuota.balances[id].v5Available);
+   if(capacity-balance>1e-8){const current=(balance-available[index])/shares[index];if(ratio!==null)nearQuota(current,ratio);ratio=current;}
+  });
+  nearQuota(after-before,Math.min(10,100-before));
+ }
+});
 

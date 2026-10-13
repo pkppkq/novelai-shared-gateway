@@ -1,5 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { inflateSync } from 'node:zlib';
+import { isV5MediumModel, V5_MEDIUM_MODEL, V5_MEDIUM_STEPS } from '../public/v5-medium.js';
+import { applyV5MediumParameters } from './v5-medium.js';
 
 export const NATIVE_MAX_BODY_BYTES = 32 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -7,8 +9,9 @@ const MAX_IMAGE_PIXELS = 16 * 1024 * 1024;
 const fail = (statusCode, message) => { throw Object.assign(new Error(message), { statusCode, status: statusCode }); };
 const object = value => value && typeof value === 'object' && !Array.isArray(value);
 const active = value => value !== undefined && value !== null && value !== '' && value !== false && (!Array.isArray(value) || value.length > 0);
-const BASE_MODELS = new Set(['nai-diffusion-3', 'nai-diffusion-furry-3', 'nai-diffusion-4-curated-preview', 'nai-diffusion-4-full', 'nai-diffusion-4-5-curated', 'nai-diffusion-4-5-full', 'nai-diffusion-5-full']);
-const INPAINT_MODELS = new Map([...BASE_MODELS].map(model => [`${model.replace('-curated-preview', '-curated')}-inpainting`, model]));
+const BASE_MODELS = new Set(['nai-diffusion-3', 'nai-diffusion-furry-3', 'nai-diffusion-4-curated-preview', 'nai-diffusion-4-full', 'nai-diffusion-4-5-curated', 'nai-diffusion-4-5-full', 'nai-diffusion-5-full', 'nai-diffusion-5-curated', V5_MEDIUM_MODEL]);
+// 5C 的文生图和图生图使用独立模型；不推导尚未验证的 5C 重绘模型，也不静默改成 4.5。
+const INPAINT_MODELS = new Map([...BASE_MODELS].filter(model => model !== 'nai-diffusion-5-curated').map(model => [`${model.replace('-curated-preview', '-curated')}-inpainting`, model]));
 const PARAMETERS = new Set(`width height steps n_samples scale cfg_rescale sampler noise_schedule seed negative_prompt uc params_version ucPreset qualityToggle ucPresetId qualityPresetId dynamic_thresholding dynamic_thresholding_percentile dynamic_thresholding_mimic_scale uncond_scale controlnet_strength legacy legacy_uc legacy_v3_extend add_original_image autoSmea sm sm_dyn skip_cfg_above_sigma skip_cfg_below_sigma deliberate_euler_ancestral_bug prefer_brownian cfg_sched_eligibility explike_fine_detail minimize_sigma_inf uncond_per_vibe wonky_vibe_correlation image_format stream use_coords characterPrompts v4_prompt v4_negative_prompt normalize_reference_strength_multiple reference_image reference_strength reference_information_extracted reference_image_multiple reference_image_multiple_cached reference_strength_multiple reference_information_extracted_multiple director_reference_images director_reference_images_cached director_reference_descriptions director_reference_information_extracted director_reference_strength_values director_reference_secondary_strength_values image mask image_cache_secret_key mask_cache_secret_key reference_image_cache_secret_key strength noise extra_noise_seed color_correct img2img inpaintImg2ImgStrength straight_alpha tag_hint_transparent_background tag_hint_qt tag_hint_uc_preset version`.split(' '));
 const BOOLEAN_PARAMETERS = `qualityToggle dynamic_thresholding legacy legacy_uc legacy_v3_extend add_original_image autoSmea sm sm_dyn deliberate_euler_ancestral_bug prefer_brownian use_coords normalize_reference_strength_multiple color_correct straight_alpha tag_hint_transparent_background explike_fine_detail minimize_sigma_inf uncond_per_vibe wonky_vibe_correlation`.split(' ');
 
@@ -17,7 +20,20 @@ function number(value, min, max, field, integer = false) {
   return value;
 }
 function checkKeys(value, allowed, message) {
-  if (Object.keys(value).some(key => !allowed.has(key))) fail(422, message);
+  const unknown = Object.keys(value).filter(key => !allowed.has(key));
+  if (!unknown.length) return;
+  // 只回显有限的字段名，不带参数值；异常名称不插入错误提示。
+  const names = unknown.slice(0, 6).map(key => /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(key) ? key : '（字段名已省略）');
+  fail(422, `${message} 未知字段：${names.join('、')}${unknown.length > names.length ? '等' : ''}。`);
+}
+function normalizeParameterAliases(parameters) {
+  // 桌面客户端同时发送两套名称；归一后沿用现有类型校验、报价和上游参数。
+  for (const [alias, field] of [['uc_preset', 'ucPreset'], ['quality_toggle', 'qualityToggle']]) {
+    if (!Object.hasOwn(parameters, alias)) continue;
+    if (Object.hasOwn(parameters, field) && parameters[field] !== parameters[alias]) fail(422, `${alias} 与 ${field} 的值不一致，请使用一致的参数。`);
+    parameters[field] = parameters[alias];
+    delete parameters[alias];
+  }
 }
 function imageDimensions(width, height) {
   if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1 || width > 8192 || height > 8192 || width * height > MAX_IMAGE_PIXELS) fail(422, '图片尺寸过大或无效；最多 8192 像素边长、1600 万像素。');
@@ -197,6 +213,7 @@ export function parseNativeImageRequest(body) {
   if (body.allowPurchasedAnlas !== undefined && typeof body.allowPurchasedAnlas !== 'boolean') fail(422, 'allowPurchasedAnlas 必须是布尔值。');
   const action = body.action ?? 'generate';
   if (!['generate', 'img2img', 'infill'].includes(action)) fail(422, '不支持此生图操作；可使用 generate、img2img 或 infill。');
+  if (action === 'infill' && ['nai-diffusion-5-curated', 'nai-diffusion-5-curated-inpainting'].includes(body.model)) fail(422, 'V5 Curated（5C）的局部重绘请在客户端选择 V4.5 Curated；网关不会自动更换模型。');
   const baseModel = INPAINT_MODELS.get(body.model) ?? body.model;
   if (!BASE_MODELS.has(baseModel)) fail(422, 'Unsupported NovelAI model.');
   if (INPAINT_MODELS.has(body.model) && action !== 'infill') fail(422, '局部重绘模型必须配合 action=infill 使用。');
@@ -205,6 +222,7 @@ export function parseNativeImageRequest(body) {
   if (typeof body.input !== 'string' || !body.input.trim() || body.input.length > 50000) fail(400, 'input must be a non-empty prompt string (max 50000 characters).');
   if (!object(body.parameters)) fail(400, 'parameters must be an object.');
   const parameters = structuredClone(body.parameters);
+  normalizeParameterAliases(parameters);
   for (const field of ['controlnet_model', 'controlnet_condition', 'characterRef', 'upscale', 'upscaled_enhance']) if (Object.hasOwn(parameters, field) && !active(parameters[field])) delete parameters[field];
   // 旧官网参数模板会附带关闭的 LoRA 字段；空值可以忽略，启用权重仍须明确拒绝。
   for (const field of ['lora_unet_weights', 'lora_clip_weights']) if (Object.hasOwn(parameters, field) && (!active(parameters[field]) || object(parameters[field]) && Object.keys(parameters[field]).length === 0)) delete parameters[field];
@@ -213,10 +231,10 @@ export function parseNativeImageRequest(body) {
   checkKeys(parameters, PARAMETERS, '包含尚未支持的生成参数；请关闭 ControlNet、自动放大或其他未支持的扩展。');
   const width = number(parameters.width, 128, 2048, 'width', true), height = number(parameters.height, 128, 2048, 'height', true);
   if (width * height > 3145728) fail(422, '生成尺寸不能超过官方 3145728 像素上限。');
-  const steps = number(parameters.steps, 1, 50, 'steps', true);
+  let steps = number(parameters.steps ?? (isV5MediumModel(model) ? V5_MEDIUM_STEPS : undefined), 1, 50, 'steps', true);
   const sampleCount = number(parameters.n_samples ?? 1, 1, 4, 'n_samples', true);
   parameters.n_samples = sampleCount;
-  parameters.scale = number(parameters.scale ?? 5, 0, 10, 'scale');
+  parameters.scale = number(parameters.scale ?? (isV5MediumModel(model) ? 7 : 5), 0, 10, 'scale');
   parameters.cfg_rescale = number(parameters.cfg_rescale ?? 0, 0, 1, 'cfg_rescale');
   for (const field of BOOLEAN_PARAMETERS) if (parameters[field] !== undefined && typeof parameters[field] !== 'boolean') fail(422, `${field} 必须是布尔值。`);
   for (const field of ['negative_prompt', 'uc']) if (parameters[field] !== undefined && (typeof parameters[field] !== 'string' || parameters[field].length > 50000)) fail(422, '负面提示词必须是字符串且不超过 50000 字符。');
@@ -283,7 +301,8 @@ export function parseNativeImageRequest(body) {
       }
     } else if (active(parameters.mask) || active(parameters.mask_cache_secret_key) || active(parameters.img2img)) fail(422, '遮罩和局部重绘参数只能用于 action=infill。');
   }
-  if (action !== 'infill' && parameters.inpaintImg2ImgStrength !== undefined) fail(422, '局部重绘强度只能用于 action=infill。');
+  // Aaalice 的图生图模板也会带重绘默认强度 1；忽略这个未启用的默认值，计费仍按 strength。
+  if (action !== 'infill' && parameters.inpaintImg2ImgStrength !== undefined && parameters.inpaintImg2ImgStrength !== 1) fail(422, '局部重绘强度只能用于 action=infill。');
   delete parameters.inpaintImg2ImgStrength;
   for (const field of ['image_cache_secret_key', 'mask_cache_secret_key', 'reference_image_cache_secret_key']) delete parameters[field];
   if (active(parameters.reference_image)) {
@@ -318,6 +337,8 @@ export function parseNativeImageRequest(body) {
     for (const description of parameters.director_reference_descriptions) validateCaption(description, 'Precise Reference', 0);
   } else if (['director_reference_descriptions', 'director_reference_information_extracted', 'director_reference_strength_values', 'director_reference_secondary_strength_values'].some(field => active(parameters[field]))) fail(422, 'Precise Reference 参数缺少对应图片。');
   delete parameters.stream;
+  // Medium 与官网切换开关一样固定参数；核价、保存和转发都使用实际的 14 步。
+  if (isV5MediumModel(model)) { applyV5MediumParameters(parameters, body.input); steps = V5_MEDIUM_STEPS; }
   return {
     prompt: body.input, tag: body.input, artist: '', action, model, baseModel, sampleCount,
     negative: parameters.negative_prompt ?? '', width, height, steps, requestedSteps: steps,

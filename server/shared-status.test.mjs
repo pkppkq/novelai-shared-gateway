@@ -35,3 +35,12 @@ test('队列与失败只汇总成员任务，最近失败排除一小时前与�
  {userToken:'member-secret',status:'failed',completedAt:NOW-3599999},{userToken:'member-secret',status:'failed',completedAt:NOW-3600001},{userToken:'member-secret',status:'failed',completedAt:NOW+1},{userToken:'other-secret',status:'failed',completedAt:NOW}];
  const s=sharedAccountStatus(db,NOW);assert.equal(s.running,1);assert.equal(s.queued,1);assert.equal(s.recentFailures,1);assert.equal(s.concurrencyLimit,4);
 });
+
+
+test('展示当前账户容量，持久降级不会只因时间经过就恢复四并发',()=>{
+ const db=fixture();assert.equal(sharedAccountStatus(db,NOW).concurrencyLimit,4);
+ db.accounts[0].capacityLimitedUntil=new Date(NOW+300000).toISOString();
+ assert.equal(sharedAccountStatus(db,NOW).concurrencyLimit,1);
+ db.accounts[0].capacityConcurrencyLimit=2;
+ assert.equal(sharedAccountStatus(db,NOW+300001).concurrencyLimit,2);
+});

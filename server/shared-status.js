@@ -1,3 +1,4 @@
+import { sharedAccountConcurrency } from './shared-capacity.js';
 // 共享状态仅返回白名单汇总；不改变账本、不调用上游，也不返回个人账户资料。
 const STALE_MS = 10 * 60 * 1000;
 const rows = value => Array.isArray(value) ? value : Object.values(value || {});
@@ -32,7 +33,8 @@ export function sharedAccountStatus(db, now = Date.now()) {
   const v5=number(account.v5UsagePercent),fixed=number(account.quotaFixed),purchased=number(account.quotaPurchased);
   const cooling=cooldown!==null&&cooldown>now;
   const status=!validSubscription?'inactive_opus':quotaSyncError?'quota_sync_error':stale?'stale':cooling?'cooldown':v5===null||fixed===null||purchased===null?'unknown_balance':'active';
-  return {...base,status,subscriptionActive:bool(account.subscriptionActive),expiresAt:iso(expires),officialCheckedAt:iso(checked),stale,
+  const concurrencyLimit = sharedAccountConcurrency(account, now);
+  return {...base,status,concurrencyLimit,subscriptionActive:bool(account.subscriptionActive),expiresAt:iso(expires),officialCheckedAt:iso(checked),stale,
     v5Percent:v5,v5IsNegative:bool(account.v5UsageIsNegative),refillSecondsPerPercent:number(account.v5UsageTimeUntilNextPercent),
     anlasFixed:fixed,anlasPurchased:purchased,cooldownUntil:cooling?iso(cooldown):null,quotaSyncError};
 }
