@@ -1,3 +1,5 @@
+import { isV5MediumModel, V5_MEDIUM_STEPS, V5_MEDIUM_ANLAS_STEP_FACTOR } from './v5-medium.js';
+
 export const sizeMap = {
   '竖图': { width: 832, height: 1216 },
   '横图': { width: 1216, height: 832 },
@@ -16,9 +18,11 @@ export const sizeMap = {
 export function generationPrice({ size = '竖图', width, height, model, steps = 28 } = {}) {
   const dimensions = sizeMap[size] || sizeMap['竖图'];
   const pixels = Number(width ?? dimensions.width) * Number(height ?? dimensions.height);
-  const v5 = model === 'nai-diffusion-5-full';
+  const medium = isV5MediumModel(model);
+  if (medium) steps = V5_MEDIUM_STEPS;
+  const v5 = medium || ['nai-diffusion-5-full', 'nai-diffusion-5-curated'].includes(model);
   if (steps <= 28 && pixels <= 1024 * 1024) return v5 ? 8 : 1;
-  const base = Math.ceil(2.951823174884865e-6 * pixels + 5.753298233447344e-7 * pixels * steps);
-  // Round BEFORE the V5 multiplier, then round again, exactly as on the official site.
+  const base = Math.ceil(2.951823174884865e-6 * pixels + 5.753298233447344e-7 * pixels * steps * (medium ? V5_MEDIUM_ANLAS_STEP_FACTOR : 1));
+  // 与官网一致：先取整，再乘 V5 系数，最后再次取整。
   return Math.max(2, Math.ceil(base * (v5 ? 1.5 : 1)));
 }

@@ -15,7 +15,8 @@ async function load() {
   $('status').textContent=(stateNames[q?.status] || '等待分配额度') + (q?.autoAnlasFallback ? ' · V5 不足时自动按 Anlas 转扣（本站记账；上游可能消耗公共 V5）' : '');
   $('v5').textContent=`${number(q?.v5Available)} / ${number(q?.v5Capacity)}%`;
   $('v5bar').max=q?.v5Capacity || 1; $('v5bar').value=q?.v5Available || 0;
-  $('recovery').textContent=`预留 ${number(q?.v5Reserved)}% · `+(q?.refillSecondsPerPercent>0 ? `个人每天约恢复 ${number(86400/q.refillSecondsPerPercent*q.share)} 个百分点` : '恢复速度等待官方数据');
+  const refill = q?.v5RefillLimited ? '恢复时间暂无法可靠估算，请留意共享上游状态' : q?.v5FullRefillSeconds === 0 ? '个人已满额；满额期间不累计额外恢复' : q?.v5RefillPerDay > 0 ? `当前每天约恢复 ${number(q.v5RefillPerDay)} 个百分点，约 ${number(q.v5FullRefillSeconds / 3600)} 小时补满（随成员使用变化）` : '恢复速度等待官方数据';
+  $('recovery').textContent=`预留 ${number(q?.v5Reserved)}% · ${refill}`;
   $('fixed').textContent=number(q?.anlasFixedAvailable); $('purchased').textContent=number(q?.anlasPurchasedAvailable);
   $('fixedHeld').textContent=`预留 ${number(q?.anlasFixedReserved)}`; $('purchasedHeld').textContent=`预留 ${number(q?.anlasPurchasedReserved)}`;
   $('jobs').replaceChildren();
