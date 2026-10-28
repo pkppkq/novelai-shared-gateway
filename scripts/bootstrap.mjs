@@ -37,7 +37,7 @@ export async function bootstrap({ env=process.env, dependencies, log=console.log
     const {default:Database}=await import('better-sqlite3');const probe=new Database(':memory:');probe.close();
   }
   const createdAt=new Date().toISOString();
-  const credentials=config.names.map(username=>({ user_id:deps.createId('usr'), username, password:randomBytes(24).toString('base64url'), api_key:deps.createPublicToken('STA1N') }));
+  const credentials=config.names.map(username=>({ user_id:deps.createId('usr'), username, password:randomBytes(24).toString('base64url'), api_key:deps.createPublicToken('NAI') }));
   const users=credentials.map(member=>({id:member.user_id,token:member.api_key,balance:0,enabled:true,note:member.username,createdAt}));
   const prepared={users};
   for (const member of credentials) await deps.setMemberCredentials(prepared,member.user_id,{username:member.username,password:member.password});

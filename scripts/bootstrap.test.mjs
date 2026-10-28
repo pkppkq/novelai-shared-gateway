@@ -19,7 +19,7 @@ test('真实 SQLite 首次初始化四成员，不联网、不发额度，凭据
   const saved=JSON.parse(await readFile(result.credentialPath,'utf8'));
   assert.equal(saved.accounts.length,4);assert.deepEqual(saved.accounts.map(a=>a.username),['member01','member02','member03','member04']);
   assert.equal(new Set(saved.accounts.map(a=>a.api_key)).size,4);assert.equal(new Set(saved.accounts.map(a=>a.password)).size,4);
-  for(const member of saved.accounts){assert.match(member.api_key,/^STA1N-/);assert.ok(member.password.length>=24);assert.ok(!logs.join('').includes(member.api_key));assert.ok(!logs.join('').includes(member.password));}
+  for(const member of saved.accounts){assert.match(member.api_key,/^NAI-/);assert.ok(member.password.length>=24);assert.ok(!logs.join('').includes(member.api_key));assert.ok(!logs.join('').includes(member.password));}
   assert.ok(!JSON.stringify(saved).includes(environment(dataDir).ADMIN_TOKEN));assert.ok(!JSON.stringify(saved).includes(environment(dataDir).NOVELAI_TOKEN));
   if(process.platform!=='win32')assert.equal((await stat(result.credentialPath)).mode&0o777,0o600);
   const store=new JsonStore(dataDir);await store.init();
