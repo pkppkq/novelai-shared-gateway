@@ -95,7 +95,7 @@ export async function generateNovelAiImage(request, account, env, options = {}) 
       referer: 'https://novelai.net/',
       'x-correlation-id': correlationId,
       'x-initiated-at': new Date().toISOString(),
-      'user-agent': 'Mozilla/5.0 Nai2API/1.0'
+      'user-agent': 'Mozilla/5.0 NovelAISharedGateway/1.0'
     },
     body: JSON.stringify({
       action: request.action || 'generate',
@@ -152,7 +152,7 @@ async function generateNovelAiImageOperation(request, account, env, options = {}
       referer: 'https://novelai.net/',
       'x-correlation-id': correlationId,
       'x-initiated-at': new Date().toISOString(),
-      'user-agent': 'Mozilla/5.0 Nai2API/1.0'
+      'user-agent': 'Mozilla/5.0 NovelAISharedGateway/1.0'
     },
     // 官网仍支持 JSON 传输；入口把旧 JSON 和新版 multipart 统一为已核价参数。
     body: JSON.stringify(payload)
@@ -200,7 +200,7 @@ async function generateNovelAiImageStream(request, account, env, options = {}) {
       referer: 'https://novelai.net/',
       'x-correlation-id': correlationId,
       'x-initiated-at': new Date().toISOString(),
-      'user-agent': 'Mozilla/5.0 Nai2API/1.0'
+      'user-agent': 'Mozilla/5.0 NovelAISharedGateway/1.0'
     },
     body: JSON.stringify({
       action: request.action || 'generate',
@@ -253,7 +253,7 @@ export async function fetchNovelAiAccountQuota(token, env = {}, options = {}) {
       accept: 'application/json',
       origin: 'https://novelai.net',
       referer: 'https://novelai.net/',
-      'user-agent': 'Mozilla/5.0 Nai2API/1.0'
+      'user-agent': 'Mozilla/5.0 NovelAISharedGateway/1.0'
     }
   }, normalizeSocksProxyUrl(options.proxyUrl || ''));
 
@@ -297,7 +297,7 @@ export async function fetchNovelAiAccountQuota(token, env = {}, options = {}) {
           accept: 'application/json',
           origin: 'https://novelai.net',
           referer: 'https://novelai.net/',
-          'user-agent': 'Mozilla/5.0 Nai2API/1.0'
+          'user-agent': 'Mozilla/5.0 NovelAISharedGateway/1.0'
         }
       }, normalizeSocksProxyUrl(options.proxyUrl || ''));
       const trialText = await trialResponse.text();

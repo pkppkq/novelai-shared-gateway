@@ -148,7 +148,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(port, host, () => {
-  console.log(`Nai2API listening on http://${host}:${port}`);
+  console.log(`NovelAI Shared Gateway listening on http://${host}:${port}`);
   startAccountQuotaAutoRefresh();
   logStartupQueueState().catch((error) => console.error('[runtime] failed to inspect startup queue:', error)).finally(() => {
     scheduleQueueDrain();
@@ -255,7 +255,7 @@ async function publicSelfUseGuard(req, res, url, method) {
   }
   const token = bodyToken || tokenFrom(req, url);
   // 官方 pst 密钥不得作为本网站登录凭据，只能由管理员加入上游池。
-  if (!token.startsWith('STA1N-')) throw httpError(401, 'Existing gateway key required.');
+  if (!token || token.startsWith('pst-')) throw httpError(401, 'Existing gateway key required.');
   const user = await store.readUserByToken(token);
   if (!user || user.enabled === false) throw httpError(401, 'invalid token.');
   return false;
@@ -323,7 +323,7 @@ async function route(req, res) {
     const counts = await store.readCounts();
     sendJson(res, 200, {
       ok: true,
-      service: 'Nai2API',
+      service: 'NovelAI Shared Gateway',
       users: counts.users,
       enabledAccounts: counts.enabledAccounts,
       cards: counts.cards,
@@ -707,7 +707,7 @@ function nativeRequestDiagnostic(body) {
     return { type: typeof value };
   };
   const identifier = (value) => typeof value === 'string' && /^[a-z][a-z0-9_-]{0,63}$/.test(value)
-    && !/pst-|sta1n|token|secret|key/i.test(value) ? value : describe(value);
+    && /^(?:nai-diffusion-[a-z0-9_-]+|generate|img2img|infill)$/.test(value) ? value : describe(value);
   const parameters = body?.parameters;
   const numeric = {};
   for (const field of ['width','height','steps','n_samples','seed','scale','cfg_rescale']) {
@@ -728,7 +728,7 @@ function logNativeDiagnostic(id, event, details) {
 
 async function handleNativeImageGeneration(req, res, { stream = false } = {}) {
   const token = bearerToken(req);
-  if (!token.startsWith('STA1N-')) throw httpError(401, 'Existing gateway key required.');
+  if (!token || token.startsWith('pst-')) throw httpError(401, 'Existing gateway key required.');
   const user = await store.readUserByToken(token);
   if (!user || user.enabled === false) throw httpError(401, 'invalid token.');
   const diagnosticId = randomBytes(8).toString('hex');
@@ -801,7 +801,7 @@ async function runNativeQueuedRequest(token, request, deadline, diagnosticId) {
 
 async function handleNativeAuxiliary(req, res, operation) {
   const token = bearerToken(req);
-  if (!token.startsWith('STA1N-')) throw httpError(401, 'Existing gateway key required.');
+  if (!token || token.startsWith('pst-')) throw httpError(401, 'Existing gateway key required.');
   const user = await store.readUserByToken(token);
   if (!user || user.enabled === false) throw httpError(401, 'invalid token.');
   const diagnosticId = randomBytes(8).toString('hex');
@@ -858,7 +858,7 @@ function openAiModelsResponse() {
         id: `${model.id}:${sampler}`,
         object: 'model',
         created,
-        owned_by: 'nai2api',
+        owned_by: 'novelai-shared-gateway',
         cost: model.cost,
         resolution_tier: 'standard'
       }))),
@@ -866,7 +866,7 @@ function openAiModelsResponse() {
         id: `${tier.label}${model.id}:${sampler}`,
         object: 'model',
         created,
-        owned_by: 'nai2api',
+        owned_by: 'novelai-shared-gateway',
         cost: generationCost({ model: model.id, ...tier.sizes['竖图'], steps: openAiFixedSteps }),
         cost_by_size: Object.fromEntries(Object.entries(tier.sizes).map(([size, dimensions]) => [
           size, generationCost({ model: model.id, ...dimensions, steps: openAiFixedSteps })
@@ -1126,7 +1126,7 @@ async function redeemCard(cardCode) {
 
     const user = {
       id: createId('usr'),
-      token: createPublicToken('STA1N'),
+      token: createPublicToken('NAI'),
       balance: Number(card.credits || 0),
       enabled: true,
       sourceCard: card.code,
@@ -1241,7 +1241,7 @@ async function createUsers(body) {
   const note = String(body.note || 'admin issued').slice(0, 120);
   const users = Array.from({ length: count }, () => ({
     id: createId('usr'),
-    token: createPublicToken('STA1N'),
+    token: createPublicToken('NAI'),
     balance: credits,
     enabled: true,
     sourceCard: '',
@@ -3768,7 +3768,7 @@ function isAccountErrorLogJob(job) {
   if (isNovelAiCapacityError({ message: text })) return false;
   if (/all NovelAI accounts are busy|server busy|direct generate timeout|AbortError|operation was aborted/i.test(text)) return false;
   if (/job deadline expired|stale timeout|queued job exceeded|running job exceeded/i.test(text)) return false;
-  if (/invalid user token|invalid STA1N|密钥额度不足|用户额度不足/i.test(text)) return false;
+  if (/invalid user token|invalid (?:gateway key|member key|token)|密钥额度不足|用户额度不足/i.test(text)) return false;
   return true;
 }
 

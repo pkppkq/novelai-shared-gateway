@@ -119,7 +119,7 @@ export async function handleMemberRoutes(req, res, url, deps) {
         let userId = body.userId;
         if (!userId) {
           if (draft.users.length >= 200) error(409, '账户数已达上限');
-          const user = { id: deps.createId('usr'), token: deps.createPublicToken('STA1N'), balance: 0, enabled: true,
+          const user = { id: deps.createId('usr'), token: deps.createPublicToken('NAI'), balance: 0, enabled: true,
             note: String(body.note || '管理员创建的成员').slice(0, 120), createdAt: new Date().toISOString() };
           userId = user.id; draft.users.push(user);
         }

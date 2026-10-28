@@ -7,7 +7,7 @@ This license applies only to original additions and modifications made for
 NovelAI Shared Gateway, including its member portal, quota-sharing logic,
 administration, bootstrap scripts, and accompanying documentation. It does
 not replace or restrict licenses granted by third-party copyright holders.
-The upstream Nai2API material remains subject to its MIT license; see
+Third-party MIT-licensed material remains subject to its original license; see
 UPSTREAM-LICENSE and NOTICE.md.
 
 2. Noncommercial permission

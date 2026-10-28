@@ -36,21 +36,29 @@ test('独立公开发行版从初始化到真实 HTTP 返回、扣费、退款�
   const upstreamToken = 'pst-synthetic-offline-fixture-only';
   const initialized = await bootstrap({ env: { ADMIN_TOKEN: adminToken, NOVELAI_TOKEN: upstreamToken, DATA_DIR: dataDir }, log() {} });
   const credentials = JSON.parse(await readFile(initialized.credentialPath, 'utf8')).accounts;
+  const originalNewKey = credentials[0].api_key;
+  credentials[1].api_key = 'LEGACY-synthetic-active';
+  credentials[2].api_key = 'LEGACY-synthetic-disabled';
+  credentials[3].api_key = 'pst-synthetic-recorded';
   const seeded = new JsonStore(dataDir);
   await seeded.init();
   try {
     await seeded.update(db => {
+      // 保留合成旧凭据，验证升级不依赖固定前缀，也不接受误登记的官方凭据。
+      for (const member of credentials) db.users.find(user => user.id === member.user_id).token = member.api_key;
+      db.users.find(user => user.id === credentials[2].user_id).enabled = false;
       Object.assign(db.accounts[0], { quotaTier: 3, subscriptionActive: true, subscriptionExpiresAt: Date.now() + 86400000,
         quotaPoints: 10000, quotaFixed: 10000, quotaPurchased: 0, v5UsagePercent: 100,
         v5UsageIsNegative: false, v5UsageTimeUntilNextPercent: 0, quotaCheckedAt: new Date().toISOString(), upstreamStatus: 'active' });
       syncFairQuota(db);
-    }, { collections: ['accounts', 'settings'], includeSettings: true, immediate: true });
+    }, { collections: ['users', 'accounts', 'settings'], includeSettings: true, immediate: true });
   } finally { await seeded.close(); }
 
   const calls = [];
   let failAt = -1, failStatus = 500, officialFixed = 10000, officialV5 = 100;
   const upstream = http.createServer(async (req, res) => {
     assert.equal(req.headers.authorization, `Bearer ${upstreamToken}`);
+    assert.equal(req.headers['user-agent'], 'Mozilla/5.0 NovelAISharedGateway/1.0');
     if (req.url === '/user/data') {
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ subscription: { tier: 3, active: true, expiresAt: Math.floor(Date.now() / 1000) + 86400,
@@ -95,7 +103,7 @@ test('独立公开发行版从初始化到真实 HTTP 返回、扣费、退款�
   });
   await new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('公开版启动超时：' + runtimeOutput)), 15000);
-    const ready = chunk => { if (chunk.toString().includes('Nai2API listening')) { clearTimeout(timer); child.stdout.off('data', ready); resolve(); } };
+    const ready = chunk => { if (chunk.toString().includes('NovelAI Shared Gateway listening')) { clearTimeout(timer); child.stdout.off('data', ready); resolve(); } };
     child.stdout.on('data', ready);
     child.once('error', error => { clearTimeout(timer); reject(error); });
     child.once('exit', code => { clearTimeout(timer); reject(new Error(`公开版提前退出 ${code}：${runtimeOutput}`)); });
@@ -131,6 +139,31 @@ test('独立公开发行版从初始化到真实 HTTP 返回、扣费、退款�
     });
     assert.equal(cors.statusCode, 204); assert.equal(cors.headers['access-control-allow-origin'], '*');
     assert.match(cors.headers['access-control-allow-headers'], /idempotency-key/);
+  });
+
+  await t.test('新旧登记 Key 经真实 HTTP 精确鉴权，禁用、未知、改前缀和官方 Key 均被拒绝', async () => {
+    assert.match(originalNewKey, /^NAI-/);
+    for (const key of [originalNewKey, credentials[1].api_key]) {
+      const models = await fetchLocal('/v1/models', { headers: { authorization: `Bearer ${key}` } });
+      assert.equal(models.status, 200);
+      assert.ok((await models.json()).data.every(model => model.owned_by === 'novelai-shared-gateway'));
+      for (const pathname of ['/ai/generate-image', '/ai/generate-image-stream', '/ai/encode-vibe']) {
+        const invalidBody = await post(pathname, body('invalid-model'), key);
+        assert.ok([400, 422].includes(invalidBody.status), `${pathname}: ${invalidBody.status}`);
+      }
+    }
+    for (const key of [credentials[2].api_key, credentials[3].api_key, 'OTHER-synthetic-active', originalNewKey + 'invalid']) {
+      assert.equal((await fetchLocal('/v1/models', { headers: { authorization: `Bearer ${key}` } })).status, 401);
+      for (const pathname of ['/ai/generate-image', '/ai/generate-image-stream', '/ai/encode-vibe']) {
+        assert.equal((await post(pathname, body(), key)).status, 401);
+      }
+    }
+    assert.equal(calls.length, 0);
+    const before = await quota(1);
+    const generated = await post('/ai/generate-image', body('nai-diffusion-4-5-full'), credentials[1].api_key);
+    assert.equal(generated.status, 200);
+    assert.match(generated.headers.get('content-type'), /application\/zip/);
+    near((await quota(1)).v5Available, before.v5Available);
   });
 
   await t.test('Full、5C 与 Medium 从两个流式路径返回可解码最终图，按实际参数只扣本人', async () => {

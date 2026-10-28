@@ -31,17 +31,17 @@ let crc=0xffffffff;
 for(const b of png){crc^=b;for(let bit=0;bit<8;bit++){const odd=crc%2;crc=Math.floor((crc>>>0)/2);if(odd)crc^=0xedb88320;}}
 assert.equal(zip.readUInt32LE(14),(crc^0xffffffff)>>>0);
 let submitted;
-Object.assign(context, { bearerToken: req => req.token || '', store:{readUserByToken:async token => token==='STA1N-test'?{enabled:true}:null}, readJson:async req=>req.body, createJob:async(token,request,options)=>{submitted={token,request,options};return{id:'mock-job'};}, openAiChatTimeoutMs:5000, waitForJobResult:async()=>({saved:{mimeType:'image/png'}}), scheduleQueueDrain:()=>{}, readStoredImage:async()=>png, imageExtension:()=> 'png', sendImage: (res,status,mime,buffer,headers)=> Object.assign(res,{status,mime,buffer,headers}) });
+Object.assign(context, { bearerToken: req => req.token || '', store:{readUserByToken:async token => token==='NAI-test'?{enabled:true}:null}, readJson:async req=>req.body, createJob:async(token,request,options)=>{submitted={token,request,options};return{id:'mock-job'};}, openAiChatTimeoutMs:5000, waitForJobResult:async()=>({saved:{mimeType:'image/png'}}), scheduleQueueDrain:()=>{}, readStoredImage:async()=>png, imageExtension:()=> 'png', sendImage: (res,status,mime,buffer,headers)=> Object.assign(res,{status,mime,buffer,headers}) });
 await assert.rejects(context.handleNativeImageGeneration({token:'pst-invalid',body:input},{}),e=>e.statusCode===401);
 const jsonHeaders={'content-type':'application/json'};
-const response={setHeader:()=>{}}; await context.handleNativeImageGeneration({token:'STA1N-test',headers:jsonHeaders,body:input},response);
+const response={setHeader:()=>{}}; await context.handleNativeImageGeneration({token:'NAI-test',headers:jsonHeaders,body:input},response);
 assert.equal(submitted.options.native,true); assert.equal(submitted.request.steps,35); assert.equal(response.status,200); assert.equal(response.mime,'application/zip'); assert.equal(response.headers['cache-control'],'no-store');
 // 使用启动器实际的 blob JSON 部件，核验从解析到队列和 ZIP 响应的完整路径。
 const form=new FormData();
 form.append('request',new Blob([JSON.stringify(input)],{type:'application/json'}),'blob');
 const encoded=new Response(form);
 const multipart=Readable.from([Buffer.from(await encoded.arrayBuffer())]);
-multipart.headers={'content-type':encoded.headers.get('content-type')}; multipart.token='STA1N-test';
+multipart.headers={'content-type':encoded.headers.get('content-type')}; multipart.token='NAI-test';
 const multipartResponse={setHeader:()=>{}};
 await context.handleNativeImageGeneration(multipart,multipartResponse);
 assert.equal(submitted.request.steps,35); assert.equal(submitted.request.prompt,'a cat');
@@ -49,7 +49,7 @@ assert.deepEqual(submitted.request.nativeParameters.v4_prompt,input.parameters.v
 assert.equal(multipartResponse.status,200); assert.deepEqual(multipartResponse.buffer,response.buffer);
 context.waitForJobResult=async()=>({error:'mock provider failure'});
 context.isTimeoutResultMessage=()=>false;
-await assert.rejects(context.handleNativeImageGeneration({token:'STA1N-test',headers:jsonHeaders,body:input},{setHeader:()=>{}}),e=>e.statusCode===500);
+await assert.rejects(context.handleNativeImageGeneration({token:'NAI-test',headers:jsonHeaders,body:input},{setHeader:()=>{}}),e=>e.statusCode===500);
 assert.match(source,/url\.pathname\.startsWith\('\/ai\/'\)/);
 assert.match(source,/\['\/ai\/generate-image', '\/v1\/ai\/generate-image'\]/);
 assert.match(source,/if \(options\.native\) return structuredClone\(body\)/);
@@ -91,7 +91,7 @@ for (const failAt of [0, 2]) {
     return completedWaits === failAt ? {error:'synthetic batch failure', statusCode:502} : {saved:{mimeType:'image/png'}};
   };
   const res = {setHeader() {}};
-  await context.handleNativeImageGeneration({token:'STA1N-test',headers:jsonHeaders,body:{...input,parameters:{...input.parameters,n_samples:3}}},res);
+  await context.handleNativeImageGeneration({token:'NAI-test',headers:jsonHeaders,body:{...input,parameters:{...input.parameters,n_samples:3}}},res);
   assert.equal(res.status,200);
   assert.equal(submittedImages.length,failAt || 3);
   assert.deepEqual(submittedImages.map(item=>item.request.seed),failAt ? [4,5] : [4,5,6]);

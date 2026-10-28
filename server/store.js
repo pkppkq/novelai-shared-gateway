@@ -53,7 +53,7 @@ const recordColumns = [
 const jobMetricColumns = ['cost', 'stats_excluded', 'error_loggable'];
 
 const defaultSettings = {
-  serviceName: 'Nai2API',
+  serviceName: 'NovelAI Shared Gateway',
   costPerImage: 1,
   maxCacheImages: 500,
   accountConcurrency: 1,
@@ -1569,7 +1569,7 @@ function isStatsExcludedJob(job = {}) {
 function isErrorLoggableJob(job = {}) {
   if (job.status !== 'failed' || !job.accountId) return false;
   const text = `${job.error || ''}\n${job.errorDetail || ''}`;
-  return !/all NovelAI accounts are busy|server busy|NovelAI returned 429|statusCode"\s*:\s*429|Concurrent generation is locked|concurrent generation|direct generate timeout|AbortError|operation was aborted|job deadline expired|stale timeout|queued job exceeded|running job exceeded|invalid user token|invalid STA1N|密钥额度不足|用户额度不足/i.test(text);
+  return !/all NovelAI accounts are busy|server busy|NovelAI returned 429|statusCode"\s*:\s*429|Concurrent generation is locked|concurrent generation|direct generate timeout|AbortError|operation was aborted|job deadline expired|stale timeout|queued job exceeded|running job exceeded|invalid user token|invalid (?:gateway key|member key|token)|密钥额度不足|用户额度不足/i.test(text);
 }
 
 function ensureItemIds(collection, items) {
@@ -2050,7 +2050,7 @@ export function createId(prefix = 'item') {
   return `${prefix}_${Date.now().toString(36)}_${random}`;
 }
 
-export function createPublicToken(prefix = 'STD') {
+export function createPublicToken(prefix = 'NAI') {
   return `${prefix}-${crypto.randomBytes(18).toString('base64url')}`;
 }
 
