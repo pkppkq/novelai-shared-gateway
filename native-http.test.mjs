@@ -14,6 +14,7 @@ import { syncFairQuota, quoteFairRequest } from './server/fair-quota.js';
 import { parseNativeImageRequest } from './server/native-image.js';
 import { nativeImagesMsgpack } from './server/native-stream.js';
 import { readNativeEvents } from './test-support/native-stream-client.mjs';
+import { syntheticPng, preciseParameters } from './test-support/precise-reference-fixtures.mjs';
 
 const root = fileURLToPath(new URL('./', import.meta.url));
 // 合成图片和新建临时数据库；测试不会读取 .env、生产数据或请求真实 NAI。
@@ -77,7 +78,11 @@ test('独立公开发行版从初始化到真实 HTTP 返回、扣费、退款�
     }
     const cost = quoteFairRequest(parseNativeImageRequest({ input: payload.input, action: payload.action, model: payload.model, parameters: payload.parameters }));
     if (cost.resource === 'anlas') officialFixed -= cost.amount;
-    if (cost.resource === 'v5') officialV5 -= cost.amount;
+    if (cost.resource === 'v5') {
+      officialV5 -= cost.amount;
+      // 模拟上游独立按参考张数扣费，不能遗漏 PR 的附加 Anlas。
+      officialFixed -= 5 * (payload.parameters.director_reference_images?.length || 0);
+    }
     const stream = req.url.endsWith('-stream');
     res.writeHead(200, { 'content-type': stream ? 'application/octet-stream' : 'image/png' });
     res.end(stream ? nativeImagesMsgpack([png]) : png);
@@ -184,6 +189,45 @@ test('独立公开发行版从初始化到真实 HTTP 返回、扣费、退款�
     }
   });
 
+  await t.test('V5 PR 经真实 HTTP 传入三种模型，V5 与参考费只扣本人', async () => {
+    const reference = syntheticPng();
+    for (const model of ['nai-diffusion-5-full', 'nai-diffusion-5-full-medium', 'nai-diffusion-5-curated']) {
+      const request = body(model, { ...preciseParameters(reference, 1, 'costume'), director_reference_strength_values: [-5] });
+      const before = await quota(), other = await quota(1);
+      const response = await post('/ai/generate-image-stream', request);
+      assert.equal(response.status, 200, await response.clone().text());
+      const [event] = readNativeEvents(Buffer.from(await response.arrayBuffer()));
+      assert.equal(event.event_type, 'final');
+      const after = await quota(), quoted = quoteFairRequest(parseNativeImageRequest(request));
+      near(before.v5Available - after.v5Available, quoted.amount);
+      assert.equal(before.anlasFixedAvailable - after.anlasFixedAvailable, 5);
+      const unchanged = await quota(1);
+      for (const field of ['v5Available', 'anlasFixedAvailable', 'anlasPurchasedAvailable']) assert.equal(unchanged[field], other[field]);
+      const sent = calls.at(-1).payload.parameters;
+      assert.equal(sent.director_reference_images[0], reference);
+      assert.deepEqual(sent.director_reference_strength_values, [-5]);
+      assert.deepEqual(sent.director_reference_secondary_strength_values, [0]);
+      assert.equal(sent.director_reference_descriptions[0].caption.base_caption, 'costume');
+    }
+  });
+
+  await t.test('PR 错误参数不提交上游，失败时同时退回 V5 和参考费', async () => {
+    const before = await quota(), count = calls.length;
+    for (const extra of [preciseParameters(syntheticPng(1472, 1472)),
+      { ...preciseParameters(), director_reference_secondary_strength_values: [1] }]) {
+      assert.equal((await post('/ai/generate-image', body('nai-diffusion-5-full', extra))).status, 422);
+    }
+    assert.equal(calls.length, count);
+    let unchanged = await quota();
+    near(unchanged.v5Available, before.v5Available); assert.equal(unchanged.anlasFixedAvailable, before.anlasFixedAvailable);
+    failAt = calls.length + 1;
+    const response = await post('/ai/generate-image-stream', body('nai-diffusion-5-full', preciseParameters()));
+    assert.equal(response.status, 500);
+    unchanged = await quota();
+    near(unchanged.v5Available, before.v5Available); assert.equal(unchanged.anlasFixedAvailable, before.anlasFixedAvailable);
+    assert.equal(calls.length, failAt);
+  });
+
   await t.test('桌面客户端 multipart 别名与普通 ZIP 接口兼容', async () => {
     const input = body('nai-diffusion-4-5-full', { uc_preset: 0, quality_toggle: false });
     const form = new FormData(); form.append('request', new Blob([JSON.stringify(input)], { type: 'application/json' }), 'request.json');
@@ -225,6 +269,8 @@ test('独立公开发行版从初始化到真实 HTTP 返回、扣费、退款�
     const reservations = Object.values(snapshot.settings.fairQuota.reservations);
     assert.ok(reservations.some(charge => charge.status === 'settled'));
     assert.ok(reservations.some(charge => charge.status === 'refunded'));
+    assert.ok(reservations.some(charge => charge.resource === 'v5' && charge.anlasAmount === 5 && charge.status === 'settled'));
+    assert.ok(reservations.some(charge => charge.resource === 'v5' && charge.anlasAmount === 5 && charge.status === 'refunded'));
     assert.ok(reservations.every(charge => charge.status !== 'reserved'));
     assert.ok(snapshot.jobs.every(job => ['done', 'failed'].includes(job.status)));
   } finally { await persisted.close(); }

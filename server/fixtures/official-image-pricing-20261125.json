@@ -1,0 +1,938 @@
+{
+  "retrievedDateBeijing": "2026-11-25",
+  "sourceUrl": "https://novelai.net/_next/static/chunks/2s4lj3fycctfh.js?dpl=b2fe159-45513015385-1",
+  "sourceSha256": "1c4f2db766b6c12038ebad772656f10e5deebd7360349fbe415fc355ed143144",
+  "referenceCostPerImage": 5,
+  "v5ReferenceBuckets": [
+    [
+      256,
+      4096
+    ],
+    [
+      256,
+      4032
+    ],
+    [
+      256,
+      3968
+    ],
+    [
+      256,
+      3904
+    ],
+    [
+      256,
+      3840
+    ],
+    [
+      256,
+      3776
+    ],
+    [
+      256,
+      3712
+    ],
+    [
+      256,
+      3648
+    ],
+    [
+      256,
+      3584
+    ],
+    [
+      256,
+      3520
+    ],
+    [
+      256,
+      3456
+    ],
+    [
+      256,
+      3392
+    ],
+    [
+      256,
+      3328
+    ],
+    [
+      320,
+      3264
+    ],
+    [
+      320,
+      3200
+    ],
+    [
+      320,
+      3136
+    ],
+    [
+      320,
+      3072
+    ],
+    [
+      320,
+      3008
+    ],
+    [
+      320,
+      2944
+    ],
+    [
+      320,
+      2880
+    ],
+    [
+      320,
+      2816
+    ],
+    [
+      320,
+      2752
+    ],
+    [
+      384,
+      2688
+    ],
+    [
+      384,
+      2624
+    ],
+    [
+      384,
+      2560
+    ],
+    [
+      384,
+      2496
+    ],
+    [
+      384,
+      2432
+    ],
+    [
+      384,
+      2368
+    ],
+    [
+      448,
+      2304
+    ],
+    [
+      448,
+      2240
+    ],
+    [
+      448,
+      2176
+    ],
+    [
+      448,
+      2112
+    ],
+    [
+      512,
+      2048
+    ],
+    [
+      512,
+      1984
+    ],
+    [
+      512,
+      1920
+    ],
+    [
+      512,
+      1856
+    ],
+    [
+      576,
+      1792
+    ],
+    [
+      576,
+      1728
+    ],
+    [
+      576,
+      1664
+    ],
+    [
+      640,
+      1600
+    ],
+    [
+      640,
+      1536
+    ],
+    [
+      704,
+      1472
+    ],
+    [
+      704,
+      1408
+    ],
+    [
+      768,
+      1344
+    ],
+    [
+      768,
+      1280
+    ],
+    [
+      832,
+      1216
+    ],
+    [
+      896,
+      1152
+    ],
+    [
+      960,
+      1088
+    ],
+    [
+      1024,
+      1024
+    ],
+    [
+      1088,
+      960
+    ],
+    [
+      1152,
+      896
+    ],
+    [
+      1216,
+      832
+    ],
+    [
+      1280,
+      768
+    ],
+    [
+      1344,
+      768
+    ],
+    [
+      1408,
+      704
+    ],
+    [
+      1472,
+      704
+    ],
+    [
+      1536,
+      640
+    ],
+    [
+      1600,
+      640
+    ],
+    [
+      1664,
+      576
+    ],
+    [
+      1728,
+      576
+    ],
+    [
+      1792,
+      576
+    ],
+    [
+      1856,
+      512
+    ],
+    [
+      1920,
+      512
+    ],
+    [
+      1984,
+      512
+    ],
+    [
+      2048,
+      512
+    ],
+    [
+      2112,
+      448
+    ],
+    [
+      2176,
+      448
+    ],
+    [
+      2240,
+      448
+    ],
+    [
+      2304,
+      448
+    ],
+    [
+      2368,
+      384
+    ],
+    [
+      2432,
+      384
+    ],
+    [
+      2496,
+      384
+    ],
+    [
+      2560,
+      384
+    ],
+    [
+      2624,
+      384
+    ],
+    [
+      2688,
+      384
+    ],
+    [
+      2752,
+      320
+    ],
+    [
+      2816,
+      320
+    ],
+    [
+      2880,
+      320
+    ],
+    [
+      2944,
+      320
+    ],
+    [
+      3008,
+      320
+    ],
+    [
+      3072,
+      320
+    ],
+    [
+      3136,
+      320
+    ],
+    [
+      3200,
+      320
+    ],
+    [
+      3264,
+      320
+    ],
+    [
+      3328,
+      256
+    ],
+    [
+      3392,
+      256
+    ],
+    [
+      3456,
+      256
+    ],
+    [
+      3520,
+      256
+    ],
+    [
+      3584,
+      256
+    ],
+    [
+      3648,
+      256
+    ],
+    [
+      3712,
+      256
+    ],
+    [
+      3776,
+      256
+    ],
+    [
+      3840,
+      256
+    ],
+    [
+      3904,
+      256
+    ],
+    [
+      3968,
+      256
+    ],
+    [
+      4032,
+      256
+    ],
+    [
+      4096,
+      256
+    ]
+  ],
+  "cases": [
+    {
+      "model": "nai-diffusion-5-full",
+      "width": 512,
+      "height": 512,
+      "steps": 23,
+      "strength": 0.01,
+      "action": "img2img",
+      "expectedGenerationAnlas": 2
+    },
+    {
+      "model": "nai-diffusion-5-full",
+      "width": 512,
+      "height": 512,
+      "steps": 23,
+      "strength": 0.5,
+      "action": "img2img",
+      "expectedGenerationAnlas": 4
+    },
+    {
+      "model": "nai-diffusion-5-full",
+      "width": 512,
+      "height": 512,
+      "steps": 23,
+      "strength": 1,
+      "action": "generate",
+      "expectedGenerationAnlas": 8
+    },
+    {
+      "model": "nai-diffusion-5-full",
+      "width": 832,
+      "height": 1216,
+      "steps": 23,
+      "strength": 0.01,
+      "action": "img2img",
+      "expectedGenerationAnlas": 2
+    },
+    {
+      "model": "nai-diffusion-5-full",
+      "width": 832,
+      "height": 1216,
+      "steps": 23,
+      "strength": 0.5,
+      "action": "img2img",
+      "expectedGenerationAnlas": 13
+    },
+    {
+      "model": "nai-diffusion-5-full",
+      "width": 832,
+      "height": 1216,
+      "steps": 23,
+      "strength": 1,
+      "action": "generate",
+      "expectedGenerationAnlas": 26
+    },
+    {
+      "model": "nai-diffusion-5-full",
+      "width": 1024,
+      "height": 1024,
+      "steps": 23,
+      "strength": 0.01,
+      "action": "img2img",
+      "expectedGenerationAnlas": 2
+    },
+    {
+      "model": "nai-diffusion-5-full",
+      "width": 1024,
+      "height": 1024,
+      "steps": 23,
+      "strength": 0.5,
+      "action": "img2img",
+      "expectedGenerationAnlas": 13
+    },
+    {
+      "model": "nai-diffusion-5-full",
+      "width": 1024,
+      "height": 1024,
+      "steps": 23,
+      "strength": 1,
+      "action": "generate",
+      "expectedGenerationAnlas": 26
+    },
+    {
+      "model": "nai-diffusion-5-full",
+      "width": 1024,
+      "height": 1536,
+      "steps": 23,
+      "strength": 0.01,
+      "action": "img2img",
+      "expectedGenerationAnlas": 2
+    },
+    {
+      "model": "nai-diffusion-5-full",
+      "width": 1024,
+      "height": 1536,
+      "steps": 23,
+      "strength": 0.5,
+      "action": "img2img",
+      "expectedGenerationAnlas": 20
+    },
+    {
+      "model": "nai-diffusion-5-full",
+      "width": 1024,
+      "height": 1536,
+      "steps": 23,
+      "strength": 1,
+      "action": "generate",
+      "expectedGenerationAnlas": 39
+    },
+    {
+      "model": "nai-diffusion-5-full",
+      "width": 1536,
+      "height": 2048,
+      "steps": 23,
+      "strength": 0.01,
+      "action": "img2img",
+      "expectedGenerationAnlas": 2
+    },
+    {
+      "model": "nai-diffusion-5-full",
+      "width": 1536,
+      "height": 2048,
+      "steps": 23,
+      "strength": 0.5,
+      "action": "img2img",
+      "expectedGenerationAnlas": 39
+    },
+    {
+      "model": "nai-diffusion-5-full",
+      "width": 1536,
+      "height": 2048,
+      "steps": 23,
+      "strength": 1,
+      "action": "generate",
+      "expectedGenerationAnlas": 77
+    },
+    {
+      "model": "nai-diffusion-5-curated",
+      "width": 512,
+      "height": 512,
+      "steps": 23,
+      "strength": 0.01,
+      "action": "img2img",
+      "expectedGenerationAnlas": 2
+    },
+    {
+      "model": "nai-diffusion-5-curated",
+      "width": 512,
+      "height": 512,
+      "steps": 23,
+      "strength": 0.5,
+      "action": "img2img",
+      "expectedGenerationAnlas": 4
+    },
+    {
+      "model": "nai-diffusion-5-curated",
+      "width": 512,
+      "height": 512,
+      "steps": 23,
+      "strength": 1,
+      "action": "generate",
+      "expectedGenerationAnlas": 8
+    },
+    {
+      "model": "nai-diffusion-5-curated",
+      "width": 832,
+      "height": 1216,
+      "steps": 23,
+      "strength": 0.01,
+      "action": "img2img",
+      "expectedGenerationAnlas": 2
+    },
+    {
+      "model": "nai-diffusion-5-curated",
+      "width": 832,
+      "height": 1216,
+      "steps": 23,
+      "strength": 0.5,
+      "action": "img2img",
+      "expectedGenerationAnlas": 13
+    },
+    {
+      "model": "nai-diffusion-5-curated",
+      "width": 832,
+      "height": 1216,
+      "steps": 23,
+      "strength": 1,
+      "action": "generate",
+      "expectedGenerationAnlas": 26
+    },
+    {
+      "model": "nai-diffusion-5-curated",
+      "width": 1024,
+      "height": 1024,
+      "steps": 23,
+      "strength": 0.01,
+      "action": "img2img",
+      "expectedGenerationAnlas": 2
+    },
+    {
+      "model": "nai-diffusion-5-curated",
+      "width": 1024,
+      "height": 1024,
+      "steps": 23,
+      "strength": 0.5,
+      "action": "img2img",
+      "expectedGenerationAnlas": 13
+    },
+    {
+      "model": "nai-diffusion-5-curated",
+      "width": 1024,
+      "height": 1024,
+      "steps": 23,
+      "strength": 1,
+      "action": "generate",
+      "expectedGenerationAnlas": 26
+    },
+    {
+      "model": "nai-diffusion-5-curated",
+      "width": 1024,
+      "height": 1536,
+      "steps": 23,
+      "strength": 0.01,
+      "action": "img2img",
+      "expectedGenerationAnlas": 2
+    },
+    {
+      "model": "nai-diffusion-5-curated",
+      "width": 1024,
+      "height": 1536,
+      "steps": 23,
+      "strength": 0.5,
+      "action": "img2img",
+      "expectedGenerationAnlas": 20
+    },
+    {
+      "model": "nai-diffusion-5-curated",
+      "width": 1024,
+      "height": 1536,
+      "steps": 23,
+      "strength": 1,
+      "action": "generate",
+      "expectedGenerationAnlas": 39
+    },
+    {
+      "model": "nai-diffusion-5-curated",
+      "width": 1536,
+      "height": 2048,
+      "steps": 23,
+      "strength": 0.01,
+      "action": "img2img",
+      "expectedGenerationAnlas": 2
+    },
+    {
+      "model": "nai-diffusion-5-curated",
+      "width": 1536,
+      "height": 2048,
+      "steps": 23,
+      "strength": 0.5,
+      "action": "img2img",
+      "expectedGenerationAnlas": 39
+    },
+    {
+      "model": "nai-diffusion-5-curated",
+      "width": 1536,
+      "height": 2048,
+      "steps": 23,
+      "strength": 1,
+      "action": "generate",
+      "expectedGenerationAnlas": 77
+    },
+    {
+      "model": "nai-diffusion-5-full-medium",
+      "width": 512,
+      "height": 512,
+      "steps": 14,
+      "strength": 0.01,
+      "action": "img2img",
+      "expectedGenerationAnlas": 2
+    },
+    {
+      "model": "nai-diffusion-5-full-medium",
+      "width": 512,
+      "height": 512,
+      "steps": 14,
+      "strength": 0.5,
+      "action": "img2img",
+      "expectedGenerationAnlas": 2
+    },
+    {
+      "model": "nai-diffusion-5-full-medium",
+      "width": 512,
+      "height": 512,
+      "steps": 14,
+      "strength": 1,
+      "action": "generate",
+      "expectedGenerationAnlas": 4
+    },
+    {
+      "model": "nai-diffusion-5-full-medium",
+      "width": 832,
+      "height": 1216,
+      "steps": 14,
+      "strength": 0.01,
+      "action": "img2img",
+      "expectedGenerationAnlas": 2
+    },
+    {
+      "model": "nai-diffusion-5-full-medium",
+      "width": 832,
+      "height": 1216,
+      "steps": 14,
+      "strength": 0.5,
+      "action": "img2img",
+      "expectedGenerationAnlas": 8
+    },
+    {
+      "model": "nai-diffusion-5-full-medium",
+      "width": 832,
+      "height": 1216,
+      "steps": 14,
+      "strength": 1,
+      "action": "generate",
+      "expectedGenerationAnlas": 15
+    },
+    {
+      "model": "nai-diffusion-5-full-medium",
+      "width": 1024,
+      "height": 1024,
+      "steps": 14,
+      "strength": 0.01,
+      "action": "img2img",
+      "expectedGenerationAnlas": 2
+    },
+    {
+      "model": "nai-diffusion-5-full-medium",
+      "width": 1024,
+      "height": 1024,
+      "steps": 14,
+      "strength": 0.5,
+      "action": "img2img",
+      "expectedGenerationAnlas": 8
+    },
+    {
+      "model": "nai-diffusion-5-full-medium",
+      "width": 1024,
+      "height": 1024,
+      "steps": 14,
+      "strength": 1,
+      "action": "generate",
+      "expectedGenerationAnlas": 15
+    },
+    {
+      "model": "nai-diffusion-5-full-medium",
+      "width": 1024,
+      "height": 1536,
+      "steps": 14,
+      "strength": 0.01,
+      "action": "img2img",
+      "expectedGenerationAnlas": 2
+    },
+    {
+      "model": "nai-diffusion-5-full-medium",
+      "width": 1024,
+      "height": 1536,
+      "steps": 14,
+      "strength": 0.5,
+      "action": "img2img",
+      "expectedGenerationAnlas": 11
+    },
+    {
+      "model": "nai-diffusion-5-full-medium",
+      "width": 1024,
+      "height": 1536,
+      "steps": 14,
+      "strength": 1,
+      "action": "generate",
+      "expectedGenerationAnlas": 22
+    },
+    {
+      "model": "nai-diffusion-5-full-medium",
+      "width": 1536,
+      "height": 2048,
+      "steps": 14,
+      "strength": 0.01,
+      "action": "img2img",
+      "expectedGenerationAnlas": 2
+    },
+    {
+      "model": "nai-diffusion-5-full-medium",
+      "width": 1536,
+      "height": 2048,
+      "steps": 14,
+      "strength": 0.5,
+      "action": "img2img",
+      "expectedGenerationAnlas": 22
+    },
+    {
+      "model": "nai-diffusion-5-full-medium",
+      "width": 1536,
+      "height": 2048,
+      "steps": 14,
+      "strength": 1,
+      "action": "generate",
+      "expectedGenerationAnlas": 44
+    },
+    {
+      "model": "nai-diffusion-5-full-medium-inpainting",
+      "width": 512,
+      "height": 512,
+      "steps": 14,
+      "strength": 0.01,
+      "action": "infill",
+      "expectedGenerationAnlas": 2
+    },
+    {
+      "model": "nai-diffusion-5-full-medium-inpainting",
+      "width": 512,
+      "height": 512,
+      "steps": 14,
+      "strength": 0.5,
+      "action": "infill",
+      "expectedGenerationAnlas": 2
+    },
+    {
+      "model": "nai-diffusion-5-full-medium-inpainting",
+      "width": 512,
+      "height": 512,
+      "steps": 14,
+      "strength": 1,
+      "action": "infill",
+      "expectedGenerationAnlas": 4
+    },
+    {
+      "model": "nai-diffusion-5-full-medium-inpainting",
+      "width": 832,
+      "height": 1216,
+      "steps": 14,
+      "strength": 0.01,
+      "action": "infill",
+      "expectedGenerationAnlas": 2
+    },
+    {
+      "model": "nai-diffusion-5-full-medium-inpainting",
+      "width": 832,
+      "height": 1216,
+      "steps": 14,
+      "strength": 0.5,
+      "action": "infill",
+      "expectedGenerationAnlas": 8
+    },
+    {
+      "model": "nai-diffusion-5-full-medium-inpainting",
+      "width": 832,
+      "height": 1216,
+      "steps": 14,
+      "strength": 1,
+      "action": "infill",
+      "expectedGenerationAnlas": 15
+    },
+    {
+      "model": "nai-diffusion-5-full-medium-inpainting",
+      "width": 1024,
+      "height": 1024,
+      "steps": 14,
+      "strength": 0.01,
+      "action": "infill",
+      "expectedGenerationAnlas": 2
+    },
+    {
+      "model": "nai-diffusion-5-full-medium-inpainting",
+      "width": 1024,
+      "height": 1024,
+      "steps": 14,
+      "strength": 0.5,
+      "action": "infill",
+      "expectedGenerationAnlas": 8
+    },
+    {
+      "model": "nai-diffusion-5-full-medium-inpainting",
+      "width": 1024,
+      "height": 1024,
+      "steps": 14,
+      "strength": 1,
+      "action": "infill",
+      "expectedGenerationAnlas": 15
+    },
+    {
+      "model": "nai-diffusion-5-full-medium-inpainting",
+      "width": 1024,
+      "height": 1536,
+      "steps": 14,
+      "strength": 0.01,
+      "action": "infill",
+      "expectedGenerationAnlas": 2
+    },
+    {
+      "model": "nai-diffusion-5-full-medium-inpainting",
+      "width": 1024,
+      "height": 1536,
+      "steps": 14,
+      "strength": 0.5,
+      "action": "infill",
+      "expectedGenerationAnlas": 11
+    },
+    {
+      "model": "nai-diffusion-5-full-medium-inpainting",
+      "width": 1024,
+      "height": 1536,
+      "steps": 14,
+      "strength": 1,
+      "action": "infill",
+      "expectedGenerationAnlas": 22
+    },
+    {
+      "model": "nai-diffusion-5-full-medium-inpainting",
+      "width": 1536,
+      "height": 2048,
+      "steps": 14,
+      "strength": 0.01,
+      "action": "infill",
+      "expectedGenerationAnlas": 2
+    },
+    {
+      "model": "nai-diffusion-5-full-medium-inpainting",
+      "width": 1536,
+      "height": 2048,
+      "steps": 14,
+      "strength": 0.5,
+      "action": "infill",
+      "expectedGenerationAnlas": 22
+    },
+    {
+      "model": "nai-diffusion-5-full-medium-inpainting",
+      "width": 1536,
+      "height": 2048,
+      "steps": 14,
+      "strength": 1,
+      "action": "infill",
+      "expectedGenerationAnlas": 44
+    }
+  ]
+}

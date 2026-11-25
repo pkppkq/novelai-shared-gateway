@@ -6,6 +6,7 @@ import {configureFairQuota, syncFairQuota, reserveFairQuota, settleFairQuota, qu
 
 // 对照独立保存的官网报价结果；不包含官网代码或真实账户信息。
 const fixture=JSON.parse(readFileSync(new URL('./fixtures/official-image-pricing-20261009.json',import.meta.url),'utf8'));
+const currentPricing=JSON.parse(readFileSync(new URL('./fixtures/official-image-pricing-20261125.json',import.meta.url),'utf8'));
 const expected=(name,args)=>{
   const row=fixture.calls[name].find(item=>JSON.stringify(item.args)===JSON.stringify(args));
   assert.ok(row,`官网报价样例缺失：${name}`);
@@ -85,7 +86,7 @@ test('V4 Vibe 参考数量附加取官网原函数，V3 不收 V4 编码附加�
   assert.throws(()=>quoteNativeRequest(input({nativeParameters:{reference_image_multiple:[image],reference_image_multiple_cached:cached}})),/不明确/);
 });
 
-test('Precise 真实校准：标准单张保留基础免费，每张参考加 5；不能与 Vibe 或 V5 混用',()=>{
+test('Precise 校准：V4.5 标准生成保留基础免费，每张参考加 5；不能与 Vibe 混用',()=>{
   for(const count of [1,2,16]){
     const request=input({nativeParameters:{director_reference_images:Array(count).fill(image)}});
     const q=quoteNativeRequest(request);
@@ -100,7 +101,8 @@ test('Precise 真实校准：标准单张保留基础免费，每张参考加 5�
   }
   const cached=input({nativeParameters:{director_reference_images_cached:[{data:image,cache_secret_key:'synthetic-precise'}]}});
   assert.equal(quoteNativeRequest(cached).amount,5);
-  assert.throws(()=>quoteNativeRequest(input({model:'nai-diffusion-5-full',nativeParameters:{director_reference_images:[image]}})),/V5/);
+  const v5=quoteNativeRequest(input({model:'nai-diffusion-5-full',nativeParameters:{director_reference_images:[image]}}));
+  assert.equal(v5.resource,'v5');assert.equal(v5.anlasAmount,5);
   assert.throws(()=>quoteNativeRequest(input({nativeParameters:{director_reference_images:[image],reference_image_multiple:[image]}})),/不能与 Vibe/);
   assert.throws(()=>quoteNativeRequest(input({model:'nai-diffusion-4-full',nativeParameters:{director_reference_images:[image]}})),/仅支持 V4.5/);
 });
@@ -172,17 +174,18 @@ test('新操作经过公平账本预扣和幂等退款，成功只结算一次',
 });
 
 
-test('Medium 计价与官网固定报价结果一致：固定 14 步、18 Anlas 续用及图生图重绘强度',()=>{
+test('Medium 计价与当前官网数字样例一致：固定 14 步、15 Anlas 续用及图生图重绘强度',()=>{
  let comparisons=0;
  for(const model of ['nai-diffusion-5-full-medium','nai-diffusion-5-full-medium-inpainting'])for(const [width,height] of [[512,512],[832,1216],[1024,1024],[1024,1536],[1536,2048]])for(const strength of [0.01,0.5,1]){
   const infill=model.endsWith('-inpainting');
   const request=input({model,width,height,steps:14,...(infill?{action:'infill',nativeParameters:{image,mask:image,img2img:{strength}}}:strength<1?{action:'img2img',nativeParameters:{image,strength}}:{})});
   const quote=quoteNativeRequest(request,{forceAnlas:true});
-  assert.equal(quote.amount,official.GI(officialParameters(request),opus,model,true),JSON.stringify({model,width,height,strength}));comparisons++;
+  const row=currentPricing.cases.find(item=>item.model===model&&item.width===width&&item.height===height&&item.strength===strength);
+  assert.ok(row,'当前官网报价样例缺失');assert.equal(quote.amount,row.expectedGenerationAnlas,JSON.stringify({model,width,height,strength}));comparisons++;
  }
  assert.equal(comparisons,30);
  const medium=input({model:'nai-diffusion-5-full-medium',steps:14}),high=input({model:'nai-diffusion-5-full'});
- assert.equal(quoteNativeRequest(medium,{forceAnlas:true}).amount,18);assert.equal(quoteNativeRequest(high,{forceAnlas:true}).amount,26);
+ assert.equal(quoteNativeRequest(medium,{forceAnlas:true}).amount,15);assert.equal(quoteNativeRequest(high,{forceAnlas:true}).amount,26);
  const free=quoteNativeRequest(medium);assert.equal(free.resource,'v5');assert.equal(free.estimated,true);assert.ok(Math.abs(free.amount/quoteNativeRequest(high).amount-0.58)<1e-12);
  assert.throws(()=>quoteNativeRequest({...medium,steps:23}),/固定 14 步/);
 });

@@ -7,7 +7,7 @@ const rows = (v) => Array.isArray(v) ? v : Object.values(v || {});
 const fail = (message, status = 402) => { const e = new Error(message); e.status = e.statusCode = status; throw e; };
 const active = (a,now) => a?.enabled === true && !a?.quotaError && Number(a?.quotaTier) === 3 && a?.subscriptionActive === true && (!a.subscriptionExpiresAt || stamp(a.subscriptionExpiresAt)>now);
 const sum = (s, field) => Object.values(s.balances).reduce((n, b) => n + b[field], 0);
-const held = (s, id, resource) => Object.values(s.reservations).filter(c => c.userId === id && c.status === 'reserved').reduce((n,c) => n+(c.resource===resource?c.amount:resource==='anlasFixed'?(c.fixed||0):resource==='anlasPurchased'?(c.purchased||0):0),0);
+const held = (s, id, resource) => Object.values(s.reservations).filter(c => c.userId === id && c.status === 'reserved').reduce((n,c) => n+(c.resource===resource?c.amount:resource==='anlas'?(c.anlasAmount||0):resource==='anlasFixed'?(c.fixed||0):resource==='anlasPurchased'?(c.purchased||0):0),0);
 const sharedHeld = s => Object.values(s.reservations).filter(c=>c.status==='reserved').reduce((n,c)=>n+(c.resource==='v5'?c.amount:(c.sharedV5Reserved||0)),0);
 const anyHeld = (s) => Object.values(s.reservations).some(c => c.status === 'reserved');
 const totals = (s) => {for(const b of Object.values(s.balances)) b.anlasAvailable=b.anlasFixedAvailable+b.anlasPurchasedAvailable;};
@@ -325,39 +325,41 @@ export function reserveFairQuota(db,user,job,account,now=Date.now()) {
     const projected=latest.v5===null?null:Math.min(100,latest.v5+(latest.seconds>0?Math.max(0,now-latest.at)/1000/latest.seconds:0));
     sharedV5Reserved=projected!==null&&projected>0?v5Equivalent:0;
   }
-  const field=q.resource==='v5'?'v5Available':'anlasAvailable';
+  const anlasAmount=q.resource==='anlas'?q.amount:Number(q.anlasAmount||0);
   let fixed=0,purchased=0;
-  if(q.resource==='anlas') {
-    fixed=Math.min(q.amount,s.balances[user.id].anlasFixedAvailable);purchased=q.amount-fixed;
-    if(purchased>0 && (job.request||job.requestPayload)?.allowPurchasedAnlas!==true) fail('个人固定 Anlas 不足；未经明确授权不会扣购买 Anlas');
+  if(anlasAmount>0) {
+    fixed=Math.min(anlasAmount,s.balances[user.id].anlasFixedAvailable);purchased=anlasAmount-fixed;
+    if(purchased>0 && request?.allowPurchasedAnlas!==true) fail('个人固定 Anlas 不足；未经明确授权不会扣购买 Anlas');
     if(purchased>s.balances[user.id].anlasPurchasedAvailable+1e-9) fail('个人购买 Anlas 不足');
     if(purchased>0) {
-      // 上游优先使用固定余额，不能指定购买池；禁止混用导致其他成员被扣款。
+      // 公开基础版保留原购买池规则，不能把上游固定余额支出转嫁给其他成员。
       const official=readSnapshot(account),fixedReserved=s.members.reduce((n,id)=>n+held(s,id,'anlasFixed'),0);
       if(fixed>0 || official.anlasFixed!==0 || fixedReserved>0 || s.spent.anlasFixed>0 || s.spent.fallbackFixed>0) fail('暂不能使用购买 Anlas：请等待官方固定余额完全耗尽并完成对账；不支持混合固定与购买余额');
     }
   }
-  if(q.resource!=='free') {
-    if(s.balances[user.id][field]+1e-9<q.amount) fail(q.resource==='v5'?'个人 V5 恢复额度不足，请等待恢复；不会自动扣 Anlas':'个人 Anlas 不足');
-    if(q.resource==='v5' && sum(s,field)-s.sharedV5Debt-sharedHeld(s)+s.members.reduce((n,id)=>n+held(s,id,'v5'),0)-q.amount<1) fail('V5 公共额度已达到安全保留边界，请等待恢复');
-    // 未结清并发会延后账本校准，但新快照下降必须立即限制派发。
+  // PR 的 V5 与参考 Anlas 必须全部通过个人及来源检查后一起预扣。
+  const resources=[[q.resource,q.amount],...(q.resource==='v5'&&anlasAmount>0?[['anlas',anlasAmount]]:[])];
+  for(const [resource,amount] of resources) {
+    if(resource==='free')continue;
+    const field=resource==='v5'?'v5Available':'anlasAvailable';
+    if(s.balances[user.id][field]+1e-9<amount) fail(resource==='v5'?'个人 V5 恢复额度不足，请等待恢复；不会自动扣 Anlas':'个人 Anlas 不足');
+    if(resource==='v5' && sum(s,field)-s.sharedV5Debt-sharedHeld(s)+s.members.reduce((n,id)=>n+held(s,id,'v5'),0)-amount<1) fail('V5 公共额度已达到安全保留边界，请等待恢复');
     const latest=readSnapshot(account);
-    const reserved=q.resource==='v5'?sharedHeld(s):s.members.reduce((n,id)=>n+held(s,id,q.resource),0);
-    const projected=q.resource==='v5'
+    const reserved=resource==='v5'?sharedHeld(s):s.members.reduce((n,id)=>n+held(s,id,resource),0);
+    const projected=resource==='v5'
       ? latest.v5===null?null:Math.min(100,latest.v5+(latest.seconds>0?Math.max(0,now-latest.at)/1000/latest.seconds:0))
       : latest.anlas;
-    const margin=q.resource==='v5'?1:0;
-    const fallbackSpent=q.resource==='v5'?s.spent.fallbackV5:s.spent.fallbackFixed+s.spent.fallbackPurchased;
-    if(projected===null || projected-reserved-s.spent[q.resource]-fallbackSpent-q.amount<margin) fail('官方公共额度不足或等待并发对账，请稍后重试');
-    if(q.resource==='anlas') {
-      for(const [resource,amount] of [['anlasFixed',fixed],['anlasPurchased',purchased]]) {
-        const globalHeld=s.members.reduce((n,id)=>n+held(s,id,resource),0);
-        const pendingFallback=resource==='anlasFixed'?s.spent.fallbackFixed:s.spent.fallbackPurchased;
-        if(latest[resource]-globalHeld-s.spent[resource]-pendingFallback+1e-9<amount) fail('官方 Anlas 子余额不足或等待并发对账');
-      }
-      s.balances[user.id].anlasFixedAvailable-=fixed;s.balances[user.id].anlasPurchasedAvailable-=purchased;totals(s);
-    } else s.balances[user.id][field]-=q.amount;
+    const margin=resource==='v5'?1:0;
+    const fallbackSpent=resource==='v5'?s.spent.fallbackV5:s.spent.fallbackFixed+s.spent.fallbackPurchased;
+    if(projected===null || projected-reserved-s.spent[resource]-fallbackSpent-amount<margin) fail('官方公共额度不足或等待并发对账，请稍后重试');
+    if(resource==='anlas')for(const [pool,poolAmount] of [['anlasFixed',fixed],['anlasPurchased',purchased]]) {
+      const globalHeld=s.members.reduce((n,id)=>n+held(s,id,pool),0);
+      const pendingFallback=pool==='anlasFixed'?s.spent.fallbackFixed:s.spent.fallbackPurchased;
+      if(latest[pool]-globalHeld-s.spent[pool]-pendingFallback+1e-9<poolAmount) fail('官方 Anlas 子余额不足或等待并发对账');
+    }
   }
+  if(q.resource==='v5')s.balances[user.id].v5Available-=q.amount;
+  if(anlasAmount>0){s.balances[user.id].anlasFixedAvailable-=fixed;s.balances[user.id].anlasPurchasedAvailable-=purchased;totals(s);}
   const charge={...q,fixed,purchased,...(fallback?{billingMode:'anlas_fallback',v5Equivalent,sharedV5Reserved,upstreamBilling:'shared_or_anlas'}:{}),configVersion:s.configVersion,groupId:groupFor(s,user.id)?.id,userId:user.id,accountId:account.id,status:'reserved',reservedAt:now};
   s.reservations[job.id]=charge;job.fairCharge=charge;
   return charge;
@@ -375,10 +377,19 @@ export function settleFairQuota(db,job,success,now=Date.now()) {
         s.fallbackBuffer.fixed+=c.fixed;s.fallbackBuffer.purchased+=c.purchased;s.sharedV5Debt+=c.sharedV5Reserved||0;
         const total=s.fallbackTotalsByUser[c.userId] ||= {fixed:0,purchased:0,v5Equivalent:0};
         total.fixed+=c.fixed;total.purchased+=c.purchased;total.v5Equivalent+=c.v5Equivalent;
-      } else {s.spent[c.resource]+=c.amount;if(c.resource==='anlas'){s.spent.anlasFixed+=c.fixed;s.spent.anlasPurchased+=c.purchased;}}
+      } else {
+        s.spent[c.resource]+=c.amount;
+        if(c.resource==='anlas'||c.anlasAmount>0){
+          if(c.resource!=='anlas')s.spent.anlas+=c.anlasAmount;
+          s.spent.anlasFixed+=c.fixed;s.spent.anlasPurchased+=c.purchased;
+        }
+      }
     }
     else if(c.resource==='anlas'){s.balances[c.userId].anlasFixedAvailable+=c.fixed;s.balances[c.userId].anlasPurchasedAvailable+=c.purchased;totals(s);}
-    else s.balances[c.userId].v5Available+=c.amount;
+    else {
+      s.balances[c.userId].v5Available+=c.amount;
+      if(c.anlasAmount>0){s.balances[c.userId].anlasFixedAvailable+=c.fixed;s.balances[c.userId].anlasPurchasedAvailable+=c.purchased;totals(s);}
+    }
   }
   s.lastSettlementAt=Math.max(s.lastSettlementAt,now);job.fairCharge=c;
   return c;

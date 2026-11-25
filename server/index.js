@@ -41,7 +41,7 @@ const fairShareMode = process.env.FAIR_SHARE_MODE === 'true';
 // 公平账本和任务状态必须同步落盘，不能使用延迟写入。
 if (fairShareMode) {
   const update = store.update.bind(store);
-  store.update = (mutator, options = {}) => update(mutator, { ...options, includeSettings: true, immediate: true });
+  store.update = (mutator, options = {}) => update(mutator, { ...options, includeSettings: options.includeSettings ?? true, immediate: true });
 }
 let queueDrainTimer = null;
 let queueDrainAt = 0;
@@ -2566,6 +2566,7 @@ async function reserveQueuedJob(jobId) {
     return { job, account: account ? { ...account } : null, token: job.userToken, cost: job.cost, accountCost, cacheKey: job.cacheKey || '' };
   }, {
     dirtyRows: dirtyResultJobRows,
+    settingsPaths: fairShareMode ? [['fairQuota']] : null,
     shouldPersist: (result) => result?.changed !== false
   });
 }
@@ -3261,7 +3262,7 @@ async function drainQueuedJobs() {
 }
 
 async function queueRetryDelay() {
-  const db = await store.readCollections(['settings', 'accounts']);
+  const db = await store.readCollections(fairShareMode ? ['accounts'] : ['settings', 'accounts']);
   return Math.max(fairShareMode ? 1000 : 25, nextAccountReadyDelay(db.accounts, db.settings) || 25);
 }
 

@@ -1,5 +1,5 @@
-import { isV5MediumModel, V5_MEDIUM_STEPS, V5_MEDIUM_ANLAS_STEP_FACTOR, V5_MEDIUM_USAGE_FACTOR } from '../public/v5-medium.js';
-// 2026-10-10 核对官网 50464 / 63509；Medium 的步数项在第一次取整前单独修正。
+import { isV5MediumModel, V5_MEDIUM_STEPS, V5_MEDIUM_USAGE_FACTOR } from '../public/v5-medium.js';
+// 2026-11-25 核对当前官方计价；Medium 与其他 V5 按各自取整顺序计算。
 // 官方生图公式先对基础费用取整，再乘 SMEA、V5 和图生图强度，最后取整。
 const A = 2.951823174884865e-6;
 const B = 5.753298233447344e-7;
@@ -47,8 +47,9 @@ export function quoteNativeRequest(request = {}, options = {}) {
   const vibes = refs('reference_image_multiple','reference_image_multiple_cached');
   const precise = refs('director_reference_images','director_reference_images_cached');
   if (present(p.reference_image)) fail('单张 Vibe 必须先归一为参考数组');
-  if (v5 && (vibes || precise)) fail('V5 官方尚不支持 Vibe 或 Precise Reference');
-  if (precise && (!model.startsWith('nai-diffusion-4-5-') || vibes)) fail('Precise Reference 仅支持 V4.5 且不能与 Vibe 同用');
+  if (v5 && vibes) fail('V5 官方尚不支持 Vibe Transfer');
+  if (v5 && precise && action === 'infill') fail('V5 PR 暂不支持局部重绘');
+  if (precise && (!v5 && !model.startsWith('nai-diffusion-4-5-') || vibes)) fail('Precise Reference 仅支持 V4.5 或 V5 且不能与 Vibe 同用');
   if (vibes && action === 'infill') fail('局部重绘不能使用 Vibe');
   let strength = 1;
   if (action !== 'generate') {
@@ -58,14 +59,16 @@ export function quoteNativeRequest(request = {}, options = {}) {
   } else if (present(p.image) || present(p.mask)) fail('纯文生图不能携带底图或遮罩');
   const sm = Boolean(request.sm ?? p.sm), dyn = Boolean(request.sm_dyn ?? p.sm_dyn);
   if (action !== 'generate' && (sm || dyn)) fail('图生图不能使用 SMEA');
-  const base = Math.max(2, Math.ceil(Math.ceil(A*pixels+B*pixels*steps*(medium ? V5_MEDIUM_ANLAS_STEP_FACTOR : 1))*(sm ? dyn ? 1.4 : 1.2 : 1)*(v5 ? 1.5 : 1)*strength));
+  // Medium 的完整 23 步基础项除以 1.75，此步骤不先取整。
+  const rawBase = medium ? (A*pixels+B*pixels*23)/1.75 : Math.ceil(A*pixels+B*pixels*steps);
+  const base = Math.max(2, Math.ceil(rawBase*(sm ? dyn ? 1.4 : 1.2 : 1)*(v5 ? 1.5 : 1)*strength));
   if (base > 140) fail('本次基础生成费用超过官方单张上限，请降低尺寸或步数');
   const vibeCost = model.startsWith('nai-diffusion-4-') ? 2*Math.max(0,vibes-4) : 0;
   const extras = vibeCost + 5*precise;
   // Opus 生成校准：标准 Opus Precise 保留基础免费，只收每个参考 5 Anlas。
   const free = pixels <= MP && steps <= 28;
   const breakdown = {generation:free ? 0 : base, vibe:vibeCost, precise:5*precise};
-  if (v5 && free && options.forceAnlas !== true) return {resource:'v5', amount:(100/1730)*(pixels/MP)*(medium ? V5_MEDIUM_USAGE_FACTOR : (A+B*steps)/(A+B*23))*strength, estimated:true, breakdown};
+  if (v5 && free && options.forceAnlas !== true) return {resource:'v5', ...(precise ? {anlasAmount:extras, billingMode:'v5_precise'} : {}), amount:(100/1730)*(pixels/MP)*(medium ? V5_MEDIUM_USAGE_FACTOR : (A+B*steps)/(A+B*23))*strength, estimated:true, breakdown};
   if (legacy && free && extras === 0) return {resource:'free', amount:0, estimated:false, breakdown};
   const amount = (legacy && free ? 0 : base) + extras;
   return {resource:'anlas', amount, estimated:true, breakdown:{...breakdown,generation:amount-extras}};

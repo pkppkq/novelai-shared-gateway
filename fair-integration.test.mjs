@@ -53,7 +53,7 @@ test('429退款并冷却，不自动换号重试',async()=>{
   job('two');assert.equal((await ctx.reserveQueuedJob('two')).queued,true);
   assert.ok(Date.parse(db.accounts[0].cooldownUntil)>Date.now());
   assert.match(source,/if \(fairShareMode\) throw error;/);
-  assert.match(source,/includeSettings: true, immediate: true/);
+  assert.match(source,/immediate: true/);
 });
 
 test('管理员开启续用后个人 V5 不足按原参数转扣 Anlas，失败退回同一钱包',async()=>{

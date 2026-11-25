@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { inflateSync } from 'node:zlib';
 import { isV5MediumModel, V5_MEDIUM_MODEL, V5_MEDIUM_STEPS } from '../public/v5-medium.js';
 import { applyV5MediumParameters } from './v5-medium.js';
+import { isV5PreciseReferenceSize, V5_PRECISE_REFERENCE_DESCRIPTIONS } from './v5-precise-reference.js';
 
 export const NATIVE_MAX_BODY_BYTES = 32 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -316,7 +317,8 @@ export function parseNativeImageRequest(body) {
   const hasPrecise = active(parameters.director_reference_images) || active(parameters.director_reference_images_cached);
   if (hasVibes && v5) fail(422, 'V5 官方尚不支持 Vibe Transfer；请改用 V3、V4 或 V4.5。');
   if (hasVibes && action === 'infill') fail(422, '官方局部重绘暂不支持 Vibe Transfer；请关闭 Vibe 或改用 V4.5 Precise Reference。');
-  if (hasPrecise && !baseModel.startsWith('nai-diffusion-4-5-')) fail(422, 'Precise Reference 仅支持 V4.5。');
+  if (hasPrecise && !v5 && !baseModel.startsWith('nai-diffusion-4-5-')) fail(422, 'Precise Reference 仅支持 V4.5 或 V5。');
+  if (hasPrecise && v5 && action === 'infill') fail(422, 'V5 PR 暂不支持局部重绘，请关闭参考图或明确选择 V4.5。');
   if (hasVibes && hasPrecise) fail(422, '官方暂不支持同时使用 Vibe Transfer 与 Precise Reference。');
   const vibeCount = references(parameters, 'reference_image_multiple', 'reference_image_multiple_cached', { image: v3 });
   if (vibeCount) {
@@ -328,13 +330,21 @@ export function parseNativeImageRequest(body) {
   if (preciseCount) {
     for (const reference of parameters.director_reference_images) {
       const dimensions = validateNativeImage(reference, 'Precise Reference');
-      if (!['1024x1536', '1536x1024', '1472x1472'].includes(`${dimensions.width}x${dimensions.height}`)) fail(422, 'Precise Reference 请先在客户端按官方尺寸处理：1024×1536、1536×1024 或 1472×1472。');
+      if (v5 ? !isV5PreciseReferenceSize(dimensions.width, dimensions.height)
+        : !['1024x1536', '1536x1024', '1472x1472'].includes(`${dimensions.width}x${dimensions.height}`)) {
+        fail(422, v5 ? 'V5 PR 请先在客户端按官方约 1MP 分桶处理参考图，例如 832×1216、1216×832 或 1024×1024；不能沿用 V4.5 的参考尺寸。'
+          : 'Precise Reference 请先在客户端按官方尺寸处理：1024×1536、1536×1024 或 1472×1472。');
+      }
     }
     numericList(parameters, 'director_reference_information_extracted', preciseCount, 0, 1, 1);
-    numericList(parameters, 'director_reference_strength_values', preciseCount, -1, 1, 1);
-    numericList(parameters, 'director_reference_secondary_strength_values', preciseCount, -1, 2, 0);
+    numericList(parameters, 'director_reference_strength_values', preciseCount, v5 ? -5 : -1, v5 ? 5 : 1, 1);
+    // V5 官网不提供 Fidelity，实际请求固定 secondary strength 为零。
+    numericList(parameters, 'director_reference_secondary_strength_values', preciseCount, v5 ? 0 : -1, v5 ? 0 : 2, 0);
     if (!Array.isArray(parameters.director_reference_descriptions) || parameters.director_reference_descriptions.length !== preciseCount) fail(422, 'Precise Reference 描述数量与参考图不一致。');
-    for (const description of parameters.director_reference_descriptions) validateCaption(description, 'Precise Reference', 0);
+    for (const description of parameters.director_reference_descriptions) {
+      validateCaption(description, 'Precise Reference', 0);
+      if (v5 && !V5_PRECISE_REFERENCE_DESCRIPTIONS.has(description.caption.base_caption)) fail(422, 'V5 PR 描述须为角色、风格、服装或官方角色与风格组合。');
+    }
   } else if (['director_reference_descriptions', 'director_reference_information_extracted', 'director_reference_strength_values', 'director_reference_secondary_strength_values'].some(field => active(parameters[field]))) fail(422, 'Precise Reference 参数缺少对应图片。');
   delete parameters.stream;
   // Medium 与官网切换开关一样固定参数；核价、保存和转发都使用实际的 14 步。

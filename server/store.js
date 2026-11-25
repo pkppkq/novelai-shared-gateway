@@ -4,6 +4,8 @@ import crypto from 'node:crypto';
 import path from 'node:path';
 import { Worker } from 'node:worker_threads';
 import Database from 'better-sqlite3';
+import { normalizeSettingsPaths, mergeSettingsPaths } from './settings-persistence.js';
+import { SettingsRecords, readPersistedSettings } from './settings-records.js';
 
 export const MAX_CACHE_IMAGES_LIMIT = 4000000;
 export const MAX_FREE_STEPS = 28;
@@ -105,6 +107,8 @@ export class JsonStore {
     this.rowState = emptyCollectionMaps();
     this.orderKeys = emptyCollectionMaps();
     this.settingsState = '';
+    this.settingsSnapshot = null;
+    this.restoreRequired = false;
     this.pendingPersistScope = null;
     this.pendingPersistTimer = null;
     this.partialCollections = new Set();
@@ -593,6 +597,7 @@ export class JsonStore {
   }
 
   async ensureLoaded() {
+    if (this.restoreRequired) this.restoreCommittedState();
     if (this.db) return;
     this.openSqlite();
     this.createSchema();
@@ -600,6 +605,28 @@ export class JsonStore {
     this.openReadWorkers();
     this.db = this.hasSqliteData() ? this.loadFromSqlite() : trimDb(normalizeDb(defaultDb));
     if (!this.hasSqliteData()) this.replaceAll(this.db);
+  }
+
+  restoreCommittedState() {
+    this.clearPendingPersist();
+    try {
+      this.db = this.loadFromSqlite();
+      this.adminStatsCache = null;
+      this.restoreRequired = false;
+    } catch (error) {
+      this.restoreRequired = true;
+      throw error;
+    }
+  }
+
+  commitTransaction(transaction) {
+    try { transaction(); }
+    catch (error) {
+      // 提交失败时恢复已提交账本和缓存，下一次请求不能沿用未落盘的预扣。
+      try { this.restoreCommittedState(); }
+      catch { this.restoreRequired = true; }
+      throw error;
+    }
   }
 
   async readRaw() {
@@ -621,6 +648,12 @@ export class JsonStore {
   async update(mutator, options = {}) {
     this.queue = this.queue.catch(() => {}).then(async () => {
       await this.ensureLoaded();
+      const batchRows = options.dirtyRows ?? options.rows ?? options.changedRows;
+      // 同步提交先保存此前已接受的延迟批次，防止本次失败牵连它们。
+      if (this.pendingPersistScope && options.persist !== false
+        && (!sqliteBatchWritesEnabled() || options.immediate === true || options.defer === false || options.full === true || !batchRows)) {
+        this.flushPendingPersistSync();
+      }
       const result = await mutator(this.db);
       const persistOptions = resolvePersistenceOptions(options, result, this.db);
       if (shouldPersistUpdate(result, persistOptions)) {
@@ -628,9 +661,11 @@ export class JsonStore {
         if (shouldDeferPersist(scope, persistOptions)) {
           this.schedulePersist(scope);
         } else {
-          this.flushPendingPersistSync();
-          if (!scope.hasDirtyRows) trimDb(this.db, { collections: scope.full ? null : scope.collections });
-          this.persistIncremental(this.db, scope);
+          // 动态提交范围与待写批次合为一次事务，避免只写入一半更新。
+          const commitScope = mergePersistenceScopes(this.pendingPersistScope, scope);
+          this.clearPendingPersist();
+          if (!commitScope.hasDirtyRows) trimDb(this.db, { collections: commitScope.full ? null : commitScope.collections });
+          this.persistIncremental(this.db, commitScope);
         }
       }
       return cloneValue(result);
@@ -639,7 +674,7 @@ export class JsonStore {
   }
 
   scheduleFlush() {
-    this.schedulePersist({ full: true, includeSettings: true, collections, dirtyRows: {}, hasDirtyRows: false });
+    this.schedulePersist({ full: true, includeSettings: true, settingsPaths: null, collections, dirtyRows: {}, hasDirtyRows: false });
     return this.pendingPersistTimer;
   }
 
@@ -840,6 +875,8 @@ export class JsonStore {
       CREATE INDEX IF NOT EXISTS idx_accounts_route_id
         ON accounts (route_id);
     `);
+    this.settingsSnapshot = new SettingsRecords(this.sqlite);
+    this.settingsSnapshot.migrate();
     runtimeLog(`SQLite schema checked in ${Date.now() - startedAt}ms`);
   }
 
@@ -847,6 +884,7 @@ export class JsonStore {
     if (this.statements) return;
     this.statements = {
       hasSettings: this.sqlite.prepare('SELECT 1 FROM app_settings WHERE key = ? LIMIT 1'),
+      hasFragmentSettings: this.sqlite.prepare("SELECT 1 FROM app_meta WHERE key = 'settings_record_format' AND value = '2' LIMIT 1"),
       hasGenericRecords: this.sqlite.prepare('SELECT 1 FROM app_records LIMIT 1'),
       selectSettings: this.sqlite.prepare('SELECT value FROM app_settings WHERE key = ?'),
       selectGenericRecords: this.sqlite.prepare('SELECT id, order_value AS orderValue, data FROM app_records WHERE collection = ? ORDER BY order_value DESC'),
@@ -885,7 +923,8 @@ export class JsonStore {
   }
 
   hasSqliteData() {
-    return Boolean(this.statements.hasSettings.get('settings') || this.hasTypedRecords() || this.statements.hasGenericRecords.get());
+    return Boolean(this.statements.hasSettings.get('settings') || this.statements.hasFragmentSettings.get()
+      || this.hasTypedRecords() || this.statements.hasGenericRecords.get());
   }
 
   hasTypedRecords() {
@@ -906,10 +945,9 @@ export class JsonStore {
     }
 
     const startedAt = Date.now();
-    const settingsRow = this.statements.selectSettings.get('settings');
     const db = {
       ...defaultDb,
-      settings: settingsRow ? safeJson(settingsRow.value, defaultSettings) : defaultSettings
+      settings: readPersistedSettings(this.sqlite, defaultSettings)
     };
     const rowState = emptyCollectionMaps();
     const orderKeys = emptyCollectionMaps();
@@ -929,7 +967,8 @@ export class JsonStore {
     const normalized = normalizeDb(db);
     this.rowState = rowState;
     this.orderKeys = orderKeys;
-    this.settingsState = JSON.stringify(normalized.settings);
+    // 缓存对应磁盘原始分片，默认值归一化的新字段由下一次配置事务保存。
+    this.settingsState = this.settingsSnapshot.reset(db.settings);
     runtimeLog(`Loaded typed SQLite runtime cache in ${Date.now() - startedAt}ms: ${formatDbCounts(normalized)} total=${formatDbCounts(totalCounts)} partial=${[...this.partialCollections].join(',') || 'none'}`);
     return normalized;
   }
@@ -962,10 +1001,9 @@ export class JsonStore {
   }
 
   loadFromGenericRecords() {
-    const settingsRow = this.statements.selectSettings.get('settings');
     const db = {
       ...defaultDb,
-      settings: settingsRow ? safeJson(settingsRow.value, defaultSettings) : defaultSettings
+      settings: readPersistedSettings(this.sqlite, defaultSettings)
     };
     for (const collection of collections) {
       const rows = this.statements.selectGenericRecords.all(collection);
@@ -978,21 +1016,24 @@ export class JsonStore {
     this.clearPendingPersist();
     this.partialCollections = new Set();
     const safeDb = trimDb(normalizeDb(db));
-    const snapshot = buildSnapshotState(safeDb, emptyCollectionMaps(), { dense: true });
+    const settingsSnapshotPlan = this.settingsSnapshot.prepare(safeDb.settings);
+    const snapshot = buildSnapshotState(safeDb, emptyCollectionMaps(), { dense: true, settingsData: settingsSnapshotPlan.data });
     const startedAt = Date.now();
     const writeAll = this.sqlite.transaction(() => {
       this.statements.deleteAllSettings.run();
       for (const collection of collections) {
         this.statements.deleteAllRecords[collection].run();
       }
-      this.statements.replaceSettings.run('settings', snapshot.settingsData);
+      this.statements.replaceSettings.run('settings', JSON.stringify(safeDb.settings));
+      this.settingsSnapshot.write(settingsSnapshotPlan, { replace: true });
       for (const collection of collections) {
         for (const [id, row] of snapshot.rowState[collection]) {
           this.statements.upsertRecord[collection].run(row.sql);
         }
       }
     });
-    writeAll();
+    this.commitTransaction(writeAll);
+    this.settingsSnapshot.commit(settingsSnapshotPlan);
     this.adminStatsCache = null;
     this.settingsState = snapshot.settingsData;
     this.rowState = snapshot.rowState;
@@ -1021,7 +1062,9 @@ export class JsonStore {
     }
     this.assertFullCollectionsAreLoaded(scope.full ? collections : scope.collections);
     const safeDb = trimDb(normalizeDb(db), { collections: scope.full ? null : scope.collections });
+    const settingsSnapshotPlan = scope.includeSettings ? this.settingsSnapshot.prepare(safeDb.settings, scope.settingsPaths) : null;
     const snapshot = buildSnapshotState(safeDb, this.orderKeys, {
+      settingsData: settingsSnapshotPlan?.data ?? this.settingsState,
       collections: scope.full ? null : scope.collections,
       includeSettings: scope.includeSettings,
       baseRowState: scope.full ? null : this.rowState,
@@ -1038,7 +1081,7 @@ export class JsonStore {
     if (!changes.settingsChanged && !changes.deletes.length && !changes.upserts.length) return;
 
     const applyChanges = this.sqlite.transaction(() => {
-      if (changes.settingsChanged) this.statements.replaceSettings.run('settings', snapshot.settingsData);
+      if (changes.settingsChanged) this.settingsSnapshot.write(settingsSnapshotPlan);
       for (const change of changes.deletes) {
         this.statements.deleteRecord[change.collection].run(change.id);
       }
@@ -1046,8 +1089,11 @@ export class JsonStore {
         this.statements.upsertRecord[change.collection].run(change.sql);
       }
     });
-    applyChanges();
-    if (scope.includeSettings) this.settingsState = snapshot.settingsData;
+    this.commitTransaction(applyChanges);
+    if (scope.includeSettings) {
+      this.settingsSnapshot.commit(settingsSnapshotPlan);
+      this.settingsState = snapshot.settingsData;
+    }
     for (const collection of (scope.full ? collections : scope.collections)) {
       this.rowState[collection] = snapshot.rowState[collection];
       this.orderKeys[collection] = snapshot.orderKeys[collection];
@@ -1070,9 +1116,10 @@ export class JsonStore {
       upserts: []
     };
     const fullCollections = [];
+    const settingsSnapshotPlan = scope.includeSettings ? this.settingsSnapshot.prepare(db.settings, scope.settingsPaths) : null;
 
     if (scope.includeSettings) {
-      const nextSettings = JSON.stringify(db.settings);
+      const nextSettings = settingsSnapshotPlan.data;
       changes.settingsChanged = this.settingsState !== nextSettings;
       if (changes.settingsChanged) changes.nextSettings = nextSettings;
     }
@@ -1132,7 +1179,7 @@ export class JsonStore {
     if (!changes.settingsChanged && !changes.deletes.length && !changes.upserts.length) return;
 
     const applyChanges = this.sqlite.transaction(() => {
-      if (changes.settingsChanged) this.statements.replaceSettings.run('settings', changes.nextSettings);
+      if (changes.settingsChanged) this.settingsSnapshot.write(settingsSnapshotPlan);
       for (const change of changes.deletes) {
         this.statements.deleteRecord[change.collection].run(change.id);
       }
@@ -1140,9 +1187,12 @@ export class JsonStore {
         this.statements.upsertRecord[change.collection].run(change.sql);
       }
     });
-    applyChanges();
+    this.commitTransaction(applyChanges);
 
-    if (changes.settingsChanged) this.settingsState = changes.nextSettings;
+    if (changes.settingsChanged) {
+      this.settingsSnapshot.commit(settingsSnapshotPlan);
+      this.settingsState = changes.nextSettings;
+    }
     for (const change of changes.deletes) {
       this.rowState[change.collection]?.delete(change.id);
       this.orderKeys[change.collection]?.delete(change.id);
@@ -1273,7 +1323,7 @@ export class JsonStore {
 }
 
 function buildSnapshotState(db, previousOrderKeys, options = {}) {
-  const settingsData = options.includeSettings === false ? '' : JSON.stringify(db.settings);
+  const settingsData = options.includeSettings === false ? '' : Object.hasOwn(options, 'settingsData') ? options.settingsData : JSON.stringify(db.settings);
   const hasCollectionOption = options.collections !== undefined && options.collections !== null;
   const targetCollections = hasCollectionOption
     ? normalizeCollectionList(options.collections) || []
@@ -1341,7 +1391,7 @@ function shouldDeferPersist(scope, options = {}) {
 
 function resolvePersistenceOptions(options = {}, result, db) {
   const resolved = { ...options };
-  for (const key of ['dirtyRows', 'rows', 'changedRows']) {
+  for (const key of ['dirtyRows', 'rows', 'changedRows', 'settingsPaths', 'includeSettings']) {
     if (typeof resolved[key] === 'function') resolved[key] = resolved[key](result, db);
   }
   return resolved;
@@ -1351,7 +1401,7 @@ function mergePersistenceScopes(current, next) {
   if (!current) return clonePersistenceScope(next);
   if (!next) return clonePersistenceScope(current);
   if (current.full || next.full) {
-    return { full: true, includeSettings: true, collections, dirtyRows: {}, hasDirtyRows: false };
+    return { full: true, includeSettings: true, settingsPaths: null, collections, dirtyRows: {}, hasDirtyRows: false };
   }
 
   const targetCollections = new Set([...(current.collections || []), ...(next.collections || [])]);
@@ -1375,6 +1425,7 @@ function mergePersistenceScopes(current, next) {
   return {
     full: false,
     includeSettings: Boolean(current.includeSettings || next.includeSettings),
+    settingsPaths: mergeSettingsPaths([current, next]),
     collections: [...targetCollections].filter((collection) => collections.includes(collection)),
     dirtyRows,
     hasDirtyRows: Object.keys(dirtyRows).length > 0
@@ -1383,7 +1434,7 @@ function mergePersistenceScopes(current, next) {
 
 function clonePersistenceScope(scope) {
   if (!scope) return null;
-  if (scope.full) return { full: true, includeSettings: true, collections, dirtyRows: {}, hasDirtyRows: false };
+  if (scope.full) return { full: true, includeSettings: true, settingsPaths: null, collections, dirtyRows: {}, hasDirtyRows: false };
   const dirtyRows = {};
   for (const [collection, ids] of Object.entries(scope.dirtyRows || {})) {
     dirtyRows[collection] = new Set(ids || []);
@@ -1391,6 +1442,7 @@ function clonePersistenceScope(scope) {
   return {
     full: false,
     includeSettings: Boolean(scope.includeSettings),
+    settingsPaths: scope.settingsPaths ? normalizeSettingsPaths(scope.settingsPaths) : null,
     collections: normalizeCollectionList(scope.collections) || [],
     dirtyRows,
     hasDirtyRows: Object.keys(dirtyRows).length > 0
@@ -1398,17 +1450,18 @@ function clonePersistenceScope(scope) {
 }
 
 function persistenceScope(options = {}) {
-  if (options.full === true) return { full: true, includeSettings: true, collections, dirtyRows: {}, hasDirtyRows: false };
+  if (options.full === true) return { full: true, includeSettings: true, settingsPaths: null, collections, dirtyRows: {}, hasDirtyRows: false };
   const dirtyRows = normalizeDirtyRows(options.dirtyRows ?? options.rows ?? options.changedRows);
   const dirtyCollections = Object.keys(dirtyRows);
   const raw = options.collections ?? options.changedCollections ?? (dirtyCollections.length ? dirtyCollections : undefined);
-  if (raw === undefined || raw === null) return { full: true, includeSettings: true, collections, dirtyRows: {}, hasDirtyRows: false };
+  if (raw === undefined || raw === null) return { full: true, includeSettings: true, settingsPaths: null, collections, dirtyRows: {}, hasDirtyRows: false };
   const values = Array.isArray(raw) ? raw : [raw];
   const includeSettings = values.includes('settings') || options.includeSettings === true;
   const targetCollections = normalizeCollectionList([...values, ...dirtyCollections]);
   return {
     full: false,
     includeSettings,
+    settingsPaths: includeSettings ? normalizeSettingsPaths(options.settingsPaths) : null,
     collections: targetCollections || [],
     dirtyRows,
     hasDirtyRows: dirtyCollections.length > 0
